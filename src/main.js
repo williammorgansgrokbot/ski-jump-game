@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { Skier, SUITS, loadSkierAssets } from './skier.js';
+import { SpriteSkier, SUITS, makeFPSkis } from './sprite_skier.js';
 import { buildWorld, terrainY } from './world.js';
 import { Spray, Confetti, Streaks } from './fx.js';
 import * as P from './physics.js';
@@ -58,7 +58,8 @@ const el = { title: $('title'), hud: $('hud'), result: $('result'), bg: $('bg'),
 
 // ---------------------------------------------------------------- game state
 const G = { state: 'loading', t: 0, ts: 1, tsTarget: 1, wall: 0 };
-let fpSkis, world, skier, titleScene, spray, confetti, streaks;
+let fpSkis, fpSkiKit, world, skier, titleScene, spray, confetti, streaks;
+const SUIT_CHIPS = ['wyatt', 'reid', 'brady', 'stetson'];
 let suitId = store.get('suit', 'wyatt'); let equip = store.get('equip', { suit: null, ski: null });
 let auto = null;                             // QA autoplay
 const run = { s: 0, v: 0, tapped: false, speedPos: 0.5, speedRes: null, t: 0, tn: 0 };
@@ -88,7 +89,7 @@ function recordsList() { return store.get('records', []); }
 
 function buildTitleUI() {
   const row = $('skiers'); row.innerHTML = '';
-  Object.keys(SUITS).forEach((id) => { const S = SUITS[id]; const b = document.createElement('button'); b.className = 'chip txt'; b.dataset.id = id; b.innerHTML = '<span class="dot" style="background:#' + S.suit.toString(16).padStart(6, '0') + '"></span>' + S.name; b.onclick = () => { pickSuit(id); A.sfx('click'); }; row.appendChild(b); });
+  SUIT_CHIPS.forEach((id) => { const S = SUITS[id]; const b = document.createElement('button'); b.className = 'chip txt'; b.dataset.id = id; b.innerHTML = '<span class="dot" style="background:#' + S.suit.toString(16).padStart(6, '0') + '"></span>' + S.name; b.onclick = () => { pickSuit(id); A.sfx('click'); }; row.appendChild(b); });
   const gr = $('gears'); gr.innerHTML = ''; const bd = best();
   P.UNLOCKS.forEach((u) => { const b = document.createElement('button'); const ok = bd >= u.need; b.className = 'chip gear txt' + (ok ? '' : ' locked'); b.dataset.id = u.id; b.innerHTML = (ok ? '' : '🔒 ') + u.name + '<small>' + (ok ? (equip[u.kind] === u.id ? 'ON' : 'TAP') : u.need + ' m') + '</small>'; b.onclick = () => { if (!ok) { A.sfx('ok'); return; } equip[u.kind] = equip[u.kind] === u.id ? null : u.id; store.set('equip', equip); applyLook(); buildTitleUI(); A.sfx('click'); }; if (ok && equip[u.kind] === u.id) b.classList.add('sel'); gr.appendChild(b); });
   const recs = recordsList(); const r = $('recs'); r.innerHTML = '<div class="best txt">' + (bd ? 'HILL RECORD<br>' + bd.toFixed(1) + ' m' : 'HILL RECORD<br>— — —') + '</div>';
@@ -96,13 +97,11 @@ function buildTitleUI() {
   document.querySelectorAll('#skiers .chip').forEach((c) => c.classList.toggle('sel', c.dataset.id === suitId));
   setMuteIcons();
 }
-function pickSuit(id) { suitId = id; store.set('suit', id); applyLook(); document.querySelectorAll('#skiers .chip').forEach((c) => c.classList.toggle('sel', c.dataset.id === id)); if (skier && G.state === 'title') { skier.play('cheerFist', 0.15); skier.rainbow = !!skier.rainbow; setTimeout(() => { if (G.state === 'title') skier.play('idle', 0.4); }, 1300); } }
+function pickSuit(id) { suitId = id; store.set('suit', id); applyLook(); document.querySelectorAll('#skiers .chip').forEach((c) => c.classList.toggle('sel', c.dataset.id === id)); if (skier && G.state === 'title') { skier.play('cheerFist', 0.15); setTimeout(() => { if (G.state === 'title') skier.play('idle', 0.4); }, 1300); } }
 function applyLook() {
-  if (!skier) return; skier.setSuit(suitId); skier.rainbow = false;
-  const M = skier.mats; const setc = (k, h) => { if (M[k]) M[k].color.setHex(h); };
-  if (equip.suit === 'gold') { setc('Shirt', 0xf5b800); setc('Pants', 0xf5b800); setc('H_Helmet', 0xffd84a); setc('H_Collar', 0x2b2b35); setc('H_HelmetStripe', 0x2b2b35); skier.setPanels(0x2b2b35, 0xb88a00); }
-  if (equip.suit === 'galaxy') { setc('Shirt', 0x5b2bd1); setc('Pants', 0x3b1d9c); setc('H_Helmet', 0x7a4cff); setc('H_Collar', 0x45f0ff); setc('H_HelmetStripe', 0x45f0ff); skier.setPanels(0x45f0ff, 0x2a1580); if (M.G_Lens) M.G_Lens.color.setHex(0x45f0ff); }
-  ['L', 'R'].forEach((s) => { if (equip.ski === 'flame') { setc('S_SkiTop' + s, 0xff7a1a); setc('S_SkiStripe' + s, 0xffe14a); } if (equip.ski === 'rainbow') skier.rainbow = true; });
+  if (!skier) return;
+  const p = skier.setSuit(equip.suit || suitId); skier.setSkis(equip.ski); fpSkiKit && fpSkiKit.setKind(equip.ski);
+  return p;
 }
 // ---------------------------------------------------------------- camera rigs
 const camState = { pos: new V3(), look: new V3(), fov: 60, roll: 0 };
@@ -118,25 +117,27 @@ function applyCam(dt, snap) {
 }
 const headW = new V3(), fwdW = new V3();
 function camFP(dt) {
-  skier.root.updateMatrixWorld(true); skier.bones.Head.getWorldPosition(headW);
+  const r = skier.root.position;
   const ang = skier.root.rotation.z;                 // negative when pointing downhill
   const fwd = fwdW.set(Math.cos(ang * 0.97), Math.sin(ang * 0.97), 0).normalize();
   const spd = run.v; const sh = Math.min(1, spd / 24);
   const nz = G.wall * 40;
-  const bx = headW.x + fwd.x * 0.05 - fwd.y * 0.12, by = headW.y + fwd.y * 0.05 + fwd.x * 0.12;
+  const bx = r.x - Math.sin(ang) * 0.88 + fwd.x * 0.3, by = r.y + Math.cos(ang) * 0.88 + fwd.y * 0.3;
   camState.pos.set(bx, by + Math.sin(nz) * 0.012 * sh + Math.sin(nz * 2.7) * 0.01 * sh, Math.sin(nz * 1.7) * 0.015 * sh);
   camState.look.copy(camState.pos).addScaledVector(fwd, 20); camState.look.y += -1.4 + Math.sin(nz * 1.3) * 0.12 * sh;
   camState.fov = 66 + 14 * sh + 3 * sstep((run.t - 0.3) / 3); camState.roll = Math.sin(nz * 0.9) * 0.01 * sh;
 }
 const droneP = new V3(), droneL = new V3(); let droneInit = false;
 function camDrone(dt, mode) {
-  // three-quarter chase drone: behind and beside the skier, looking down the hill so the landing zone is ahead
+  // side-on follow rig on the +Z side: sprites are drawn side-on, so we keep the camera broadside with an elevated pitch,
+  // looking a little ahead of the skier so the landing zone is visible
   const r = skier.root.position; const t = G.wall;
-  let dz = 3.8, dy = 2.5, back = 5.0, lx = 8.0, ly = -2.3, fov = 40, kp = 9, kl = 12;
-  if (mode === 'land') { dz = 4.0; dy = 2.2; back = 4.2; lx = 5.0; ly = -0.3; fov = 40; kp = 6; kl = 8; }
-  if (mode === 'celebrate') { dz = 10.0; dy = 3.4; back = 0; lx = 0.4; ly = 2.6; fov = 42; kp = 3; kl = 4; }
-  const tp = new V3(r.x - back, r.y + dy, dz + Math.sin(t * 0.7) * 0.25);
-  const tl = new V3(r.x + lx, r.y + ly, -0.6);
+  let dz = 8.6, dy = 4.2, back = 0.4, lx = 3.1, ly = -1.2, fov = 40, kp = 9, kl = 12;
+  if (mode === 'land') { dz = 8.6; dy = 3.0; back = 0.4; lx = 2.6; ly = 1.3; fov = 40; kp = 6; kl = 8; }
+  if (mode === 'celebrate') { dz = 8.8; dy = 1.9; back = -0.2; lx = 0.5; ly = 2.9; fov = 42; kp = 3; kl = 4; }
+  const T = window.__camTune && window.__camTune[mode]; if (T) { if (T.dz != null) dz = T.dz; if (T.dy != null) dy = T.dy; if (T.back != null) back = T.back; if (T.lx != null) lx = T.lx; if (T.ly != null) ly = T.ly; if (T.fov != null) fov = T.fov; }
+  const tp = new V3(r.x - back, r.y + dy, dz + Math.sin(t * 0.7) * 0.2);
+  const tl = new V3(r.x + lx, r.y + ly, 0);
   if (!droneInit) { droneP.copy(tp); droneL.copy(tl); camState.fov = fov; droneInit = true; }
   const kyp = 1 - Math.exp(-dt * kp * 2.4), kyl = 1 - Math.exp(-dt * kl * 2.4); droneP.x += (tp.x - droneP.x) * (1 - Math.exp(-dt * kp)); droneP.y += (tp.y - droneP.y) * kyp; droneP.z += (tp.z - droneP.z) * (1 - Math.exp(-dt * kp)); droneL.x += (tl.x - droneL.x) * (1 - Math.exp(-dt * kl)); droneL.y += (tl.y - droneL.y) * kyl; droneL.z += (tl.z - droneL.z) * 0.2;
   camState.pos.copy(droneP); camState.pos.y += Math.sin(t * 1.3) * 0.08; camState.look.copy(droneL); camState.fov = lerp(camState.fov, fov, 1 - Math.exp(-dt * 8)); camState.roll = Math.sin(t * 0.8) * 0.01;
@@ -148,13 +149,13 @@ function sampleVel() { const s = P.sampleAt(fl.sim, Math.min(fl.ft, fl.sim.tHit)
 function setTimeScale(v) { G.tsTarget = v; }
 function toTitle() {
   G.state = 'title'; show(el.title, true); show(el.hud, false); show(el.result, false); el.bg.style.opacity = 1; el.banner.classList.remove('show'); el.newrec.classList.remove('show'); confetti && confetti.stop();
-  titleScene.add(skier.root); skier.root.scale.setScalar(1); skier.root.position.set(0, 0, 0); skier.root.rotation.set(0, -1.25, 0); skier.fp && skier.fp(false); applyLook(); skier.play('idle', 0.3); G.tt = 6.2;
+  skier.attach(titleScene); skier.ground = () => ({ y: 0, ang: 0 }); skier.root.scale.setScalar(0.8); skier.root.position.set(0, 0, 0); skier.root.rotation.set(0, 0, 0); skier.fp(false); applyLook(); skier.play('idle', 0.3, true); G.tt = 0;
   droneInit = false; A.music('title'); A.stopWind(); world && (world.cheer = 0); buildTitleUI(); G.ts = G.tsTarget = 1;
 }
 function startRun() {
   A.initAudio(); A.unlockSpeech(); A.music('run'); A.startWind(); A.sfx('click');
   G.state = 'ready'; G.t = 0; show(el.title, false); show(el.result, false); show(el.hud, true); el.bg.style.opacity = 0; el.banner.classList.remove('show'); el.banner.style.opacity = ''; el.newrec.classList.remove('show'); confetti.stop();
-  world.resetMarkers(); world.cheer = 0; world.scene.add(skier.root); skier.root.scale.setScalar(1); applyLook(); skier.fp(true);
+  world.resetMarkers(); world.cheer = 0; skier.attach(world.scene); skier.ground = (x) => ({ y: P.groundY(x), ang: P.groundAngle(x) }); skier.root.scale.setScalar(1); applyLook(); skier.fp(true);
   const p = P.runAt(0); skier.root.position.set(p.x, p.y, 0); skier.root.rotation.set(0, 0, -p.ang); skier.play('crouch', 0.5);
   Object.assign(run, { s: 0, v: 0, tapped: false, speedPos: 0.5, speedRes: null, t: 0, tn: 0 }); Object.assign(lip, { t: 0, tapped: false, pos: 0, res: null });
   Object.assign(fl, { sim: null, ft: 0, landTap: false, landDt: 0, grade: null, landed: false, dist: 0, slide: null, touchT: 0, cheering: false });
@@ -182,8 +183,8 @@ function beginLip() { G.state = 'lip'; lip.t = 0; show(el.mSpeed, false); show(e
 function takeoff() {
   const v0 = run.v; const lres = lip.res || P.launchFromMeter(lip.pos); const e = lres.e; if (!lip.res) { lip.res = lres; showGrade(lres.grade); }
   const wind = (Math.random() - 0.5) * 0.0; fl.sim = P.simulateFlight(v0, e, wind); fl.ft = 0; fl.v0 = v0; fl.e = e;
-  G.state = 'flight'; setTimeScale(1); skier.fp(false); skier.root.scale.setScalar(1.35); startBlend(0.55); droneInit = false; streaks.setMode('side'); show(el.mLand, false);
-  skier.play('takeoff', 0.05); fl.flightQueued = true; A.sfx('launch'); G.shake = 0.5; spray.burst(skier.root.position.x, skier.root.position.y, 0, 14, 6, 6, 0.9);
+  G.state = 'flight'; setTimeScale(1); skier.fp(false); skier.root.scale.setScalar(1.5); skier.kick(0.22); startBlend(0.55); droneInit = false; streaks.setMode('side'); show(el.mLand, false);
+  skier.play('takeoff', 0.05, true); fl.flightQueued = true; A.sfx('launch'); G.shake = 0.5; spray.burst(skier.root.position.x, skier.root.position.y, 0, 14, 6, 6, 0.9);
   el.dlab.textContent = 'DISTANCE'; el.dunit.textContent = 'm'; el.dnum.textContent = '0';
   const mp = P.speedFromMeter(run.speedPos); fl.speedGrade = (run.speedRes || mp).grade; if (!run.speedRes) run.speedRes = mp;
 }
@@ -194,7 +195,7 @@ function touchdown() {
   const x = h.x, y = P.groundY(x); skier.root.position.set(x, y, 0);
   const tang = Math.max(8, h.sp * 0.82); fl.slide = { x, v: tang };
   if (fl.grade.name === 'SLOPPY' && !wait) skier.play('sloppy', 0.04); else skier.play('telemark', 0.04);
-  spray.burst(x, y, 0, 30, 8, h.vx * 0.3, 1.1); A.sfx('land'); A.sfx('skid'); G.shake = 0.9; world.cheer = 0.6;
+  spray.burst(x, y, 0, 30, 8, h.vx * 0.3, 1.1); skier.kick(-0.3); A.sfx('land'); A.sfx('skid'); G.shake = 0.9; world.cheer = 0.6;
   el.dnum.textContent = fl.dist.toFixed(1); show(el.mLand, false);
   // style points
   fl.styleLaunch = Math.round(20 * lip.res.q * (lip.res.grade === 'PERFECT' ? 1 : 0.9)); fl.styleSpeed = Math.round(10 * run.speedRes.q);
@@ -229,7 +230,7 @@ function update(dt) {
   G.wall += dt; A.windLevel && (G.state === 'inrun' || G.state === 'flight' || G.state === 'lip' ? A.windLevel(Math.min(1, (G.state === 'flight' ? 1.0 : run.v / 26) * 0.6), 0.5 + 0.5 * Math.sin(G.wall * 3.1) * Math.sin(G.wall * 1.7)) : A.windLevel(0, 0));
   G.ts += (G.tsTarget - G.ts) * Math.min(1, dt * (G.tsTarget < G.ts ? 12 : 5)); const gdt = dt * G.ts;
   const st = G.state;
-  if (st === 'title') { G.tt = (G.tt || 0) + dt; if (G.tt > 6.5) { G.tt = 0; skier.play(Math.random() < 0.5 ? 'cheerShow' : 'cheerFist', 0.3); G.titleCheer = 2.8; } if (G.titleCheer > 0) { G.titleCheer -= dt; if (G.titleCheer <= 0) skier.play('idle', 0.5); } skier.update(dt); if (!window.__freeze) skier.root.rotation.y = -1.25 + Math.sin(G.wall * 0.5) * 0.15; }
+  if (st === 'title') { G.tt = (G.tt || 0) + dt; if (G.titleCheer > 0) { G.titleCheer -= dt; if (G.titleCheer <= 0) skier.play('idle', 0.5); } skier.update(dt); }
   else if (st === 'ready') {
     G.readyT += dt; const n = 3 - Math.floor(G.readyT / 0.55); if (n >= 1) { if (el.count.textContent !== String(n)) { el.count.textContent = String(n); A.sfx('beep'); } } else beginInrun();
     skier.update(gdt); camFP(dt); applyCam(dt);
@@ -259,7 +260,7 @@ function update(dt) {
       if (tl < 0.5 && !fl.preland) { fl.preland = true; skier.play('preland', 0.2); } if (fl.ft < 0.1) fl.preland = false;
       if (tl < 1.5 && !fl.meterOn) { fl.meterOn = true; show(el.mLand, true); $('m-land').querySelector('.name').textContent = 'LAND IT!'; } if (fl.ft < 0.1) fl.meterOn = false;
       if (fl.meterOn) el.mk.style.left = (0.5 - (tl / 1.3) * 0.5) * 100 + '%';
-      const gam = Math.atan2(s.vy, s.vx); skier.root.position.set(s.x, s.y, 0); skier.root.rotation.z = gam * 0.9 + 0.1;
+      const gam = Math.atan2(s.vy, s.vx); skier.root.position.set(s.x, s.y, 0); skier.root.rotation.z = gam * 0.5;
       el.dnum.textContent = Math.max(0, P.arcAt(s.x)).toFixed(0); world.updateMarkers(P.arcAt(s.x), G.wall);
       skier.update(gdt); camDrone(dt, 'flight');
       if (fl.ft >= sim.tHit) touchdown();
@@ -283,7 +284,7 @@ function update(dt) {
   if (G.state === 'celebrate' || G.state === 'result') { skier.update(gdt); camDrone(dt, 'celebrate'); streaksLevel = 0; }
   if (G.state === 'celebrate' || G.state === 'result' || G.state === 'landing' || G.state === 'flight') applyCam(dt);
   if (fpSkis) { const on = st === 'ready' || st === 'inrun' || st === 'lip'; fpSkis.visible = on; if (on) fpSkis.children.forEach((h, i) => { h.rotation.x = Math.sin(G.wall * 11 + i * 2) * 0.012 * Math.min(1, run.v / 20); h.position.y = -0.66 + Math.sin(G.wall * 17 + i) * 0.004 * Math.min(1, run.v / 20); }); }
-  if (skier && skier.rainbow) { const h = (G.wall * 0.4) % 1; ['L', 'R'].forEach((s) => { const m = skier.mats['S_SkiTop' + s]; if (m) m.color.setHSL(h, 0.9, 0.55); }); }
+  if (fpSkiKit) fpSkiKit.tick(G.wall);
   // fx
   const sp = G.state === 'inrun' || G.state === 'lip' ? run.v : (fl.sim && G.state === 'flight' ? fl.v0 : (fl.slide ? fl.slide.v * 2 : 0));
   streaks.update(dt, sp, G.state === 'inrun' ? Math.min(1, run.v / 26) * 0.9 : (G.state === 'lip' ? 0.9 : (G.state === 'flight' ? 0.75 : (G.state === 'landing' ? streaksLevel : 0))));
@@ -298,8 +299,8 @@ function frame(now) {
   requestAnimationFrame(frame); if (!world) return;
   const raw = Math.min(0.05, (now - last) / 1000 || 0.016); last = now; const dt = Math.min(1 / 30, raw);
   if (auto) autoplay(dt);
-  if (G.state === 'title') { update(dt); renderer.setClearColor(0x000000, 0); renderer.render(titleScene, tcam); }
-  else if (G.state !== 'loading') { update(dt); renderer.render(world.scene, cam); }
+  if (G.state === 'title') { update(dt); skier.billboard(tcam); renderer.setClearColor(0x000000, 0); renderer.render(titleScene, tcam); }
+  else if (G.state !== 'loading') { update(dt); skier.billboard(cam); renderer.render(world.scene, cam); }
   fpsAcc += raw; fpsN++; if (fpsAcc > 2.0) { const fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; window.__fps = fps; if (G.state !== 'title' && fps < 40) slowWin++; else slowWin = 0; if (slowWin >= 2 && qLevel < 2 && !params.get('noadapt')) { slowWin = 0; qLevel++; if (qLevel === 1) { pixelRatio = Math.max(1, pixelRatio * 0.75); resize(); } else { renderer.shadowMap.enabled = false; world.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); } console.log('[quality] lowered to', qLevel); } }
 }
 // ---------------------------------------------------------------- QA autoplay hooks
@@ -328,13 +329,14 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { try
 (async function boot() {
   const bar = $('lbar'); let done = 0; const total = Object.keys(TEXFILES).length + 3; const tick = () => { done++; bar.style.width = (done / total * 100) + '%'; };
   const tex = {}; await Promise.all(Object.keys(TEXFILES).map((k) => loadTex('art/' + TEXFILES[k]).then((t) => { tex[k] = t; tick(); })));
-  const [assets, pineGeo] = await Promise.all([loadSkierAssets('models/').then((a) => { tick(); return a; }), loadPine().then((g) => { tick(); return g; }).catch(() => null)]);
+  const [skiGltf, pineGeo] = await Promise.all([loadGLB('models/gear_ski.glb').then((a) => { tick(); return a; }), loadPine().then((g) => { tick(); return g; }).catch(() => null)]);
   world = buildWorld({ tex, pineGeo, quality: QUAL }); tick();
   world.scene.add(cam);
   titleScene = new THREE.Scene(); titleScene.add(new THREE.HemisphereLight(0xdff0ff, 0xaec4e6, 1.25)); const tl = new THREE.DirectionalLight(0xfff1d6, 2.0); tl.position.set(3, 5, 4); titleScene.add(tl);
-  skier = new Skier(assets, { quality: mobile ? 'low' : 'high' });
-  skier.fp = function (on) { this.bones.Head.scale.setScalar(on ? 0.001 : this.headBoneScale); };
-  fpSkis = new THREE.Group(); [-1, 1].forEach((sd) => { const c = (sd < 0 ? skier.gear.skiL : skier.gear.skiR).clone(true); c.position.set(0, 0, 0); c.rotation.set(0, 0, 0); c.scale.setScalar(1); c.traverse((o) => { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; }); const h = new THREE.Group(); h.add(c); h.position.set(sd * 0.2, -0.66, -1.15); h.rotation.y = sd * 0.1; h.userData.sd = sd; fpSkis.add(h); }); fpSkis.visible = false; cam.add(fpSkis);
+  skier = new SpriteSkier();
+  fpSkiKit = makeFPSkis(skiGltf);
+  fpSkis = new THREE.Group(); [-1, 1].forEach((sd) => { const c = fpSkiKit.mk(sd); const h = new THREE.Group(); h.add(c); h.position.set(sd * 0.2, -0.66, -1.15); h.rotation.y = sd * 0.1; h.userData.sd = sd; fpSkis.add(h); }); fpSkis.visible = false; cam.add(fpSkis);
+  await applyLook();
   spray = new Spray(world.scene, tex.puff, 150); confetti = new Confetti(cam, 150); streaks = new Streaks(cam, 70);
   resize(); toTitle(); el.go.disabled = false;
   $('loading').style.opacity = 0; setTimeout(() => $('loading').remove(), 600);

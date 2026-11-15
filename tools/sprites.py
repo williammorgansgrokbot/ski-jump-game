@@ -175,6 +175,13 @@ def pot(n):
     while p < n: p *= 2
     return p
 
+def bleed(im):
+    # copy colour of the nearest opaque pixel into fully transparent pixels (no dark fringe under bilinear filtering)
+    a = im[..., 3] > 0
+    idx = nd.distance_transform_edt(~a, return_distances=False, return_indices=True)
+    near = im[idx[0], idx[1], :3]
+    im[..., :3] = np.where(a[..., None], im[..., :3], near)
+
 # ---------------------------------------------------------------- recolor
 SUITS = [
  dict(id='wyatt',   name='Wyatt',   hue=None, num='7'),
@@ -307,6 +314,7 @@ def build(write=True):
                 pi, x, y = where[(ai, fi)]
                 out = fn(ai, fi, a, f)
                 atl[pi][y:y + out.shape[0], x:x + out.shape[1]] = out
+        for im in atl: bleed(im)
         return atl
     suit_frames = {}
     for si, suit in enumerate(SUITS):

@@ -9,7 +9,7 @@ export class Spray {
     this.mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { map: { value: tex }, scale: { value: 500 } },
       vertexShader: 'attribute float aSize; attribute float aAlpha; uniform float scale; varying float vA; void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0); vA = aAlpha; gl_PointSize = aSize * scale / max(0.5,-mv.z); gl_Position = projectionMatrix * mv; }',
       fragmentShader: 'uniform sampler2D map; varying float vA; void main(){ vec4 c = texture2D(map, gl_PointCoord); gl_FragColor = vec4(c.rgb, c.a * vA); if (gl_FragColor.a < 0.02) discard; }' });
-    this.pts = new THREE.Points(g, this.mat); this.pts.frustumCulled = false; this.pts.renderOrder = 5; scene.add(this.pts);
+    this.pts = new THREE.Points(g, this.mat); this.pts.frustumCulled = false; this.pts.renderOrder = 11; scene.add(this.pts);
   }
   emit(x, y, z, vx, vy, vz, size, life) {
     const i = this.head; this.head = (this.head + 1) % this.max;
