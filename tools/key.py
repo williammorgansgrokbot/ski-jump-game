@@ -2,7 +2,7 @@
 import sys, numpy as np
 from PIL import Image, ImageFilter
 import scipy.ndimage as nd
-def key(path, screen='green', t0=40, t1=110):
+def key(path, screen='green', t0=40, t1=110, hole_min=4000):
     im = Image.open(path).convert('RGB'); a = np.asarray(im).astype(np.float32)
     bgc = np.array([0, 255, 0] if screen == 'green' else [255, 0, 255], np.float32)
     # estimate actual bg from borders
@@ -19,7 +19,7 @@ def key(path, screen='green', t0=40, t1=110):
     sizes = nd.sum(bgmask, lab, range(1, n + 1))
     keepbg = np.zeros_like(bgmask)
     for i, s in enumerate(sizes, 1):
-        if i in border or s > 4000: keepbg |= (lab == i)
+        if i in border or s > hole_min: keepbg |= (lab == i)
     alpha = np.where(keepbg, 0.0, np.maximum(alpha, 0.0))
     alpha = np.where(keepbg, 0, np.where(bgmask, 1.0, alpha))
     alpha = np.asarray(Image.fromarray((alpha * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.7))).astype(np.float32) / 255
