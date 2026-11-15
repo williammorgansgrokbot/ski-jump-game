@@ -190,6 +190,7 @@ SUITS = [
  dict(id='stetson', name='Stetson', hue=56,   num='21', sat=0.93, vmul=1.04, vadd=0.1),
  dict(id='gold',    name='Gold',    hue=42,   num='1',  sat=0.95, vmul=0.93, vadd=0.06, sheen=True),
  dict(id='galaxy',  name='Galaxy',  hue=262,  num='99', sat=0.9, vmul=0.82, vadd=0.0, galaxy=True),
+ dict(id='aurora',  name='Aurora',  hue=172,  num='88', sat=0.92, vmul=1.0, vadd=0.07, sheen=True),
 ]
 FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
 
@@ -270,7 +271,9 @@ def ski_overlay(frame, mk, kind, anchor, fid):
     H, S, V = hsv_of(rgb)
     y, x = np.mgrid[:H.shape[0], :H.shape[1]]
     t = np.clip((x - anchor[0]) / SKI_LEN + 0.5, 0, 1)
-    if kind == 'flame':
+    if kind == 'neon':
+        hh = 170 + 150 * t; S2 = np.full_like(H, 0.9); V2 = np.clip(V * 1.15 + 0.3, 0, 1)
+    elif kind == 'flame':
         hh = 2 + 52 * t ** 1.4; S2 = np.full_like(H, 0.95); V2 = np.clip(V * 1.2 + 0.28, 0, 1)
     else:
         hh = (360 * t * 1.05) % 360; S2 = np.full_like(H, 0.85); V2 = np.clip(V * 1.1 + 0.18, 0, 1)
@@ -330,7 +333,7 @@ def build(write=True):
         if write:
             for pi, im in enumerate(atl):
                 Image.fromarray(im).quantize(256, method=Image.FASTOCTREE, dither=Image.NONE).convert('RGBA').save(OUT + 'suit_%s_%d.webp' % (suit['id'], pi), 'WEBP', lossless=True, method=6)
-    for kind in ('flame', 'rainbow'):
+    for kind in ('flame', 'rainbow', 'neon'):
         def fn(ai, fi, a, f, kind=kind):
             return ski_overlay(f, masks(f), kind, a['anchors'][fi], fi)
         atl = render(fn)
@@ -353,7 +356,7 @@ def previews(anims, suit_frames):
         cols.append(col)
     cw = max(f.shape[1] for c in cols for f in c) + 20
     rh = [max(c[r].shape[0] for c in cols) + 20 for r in range(len(pick))]
-    W = cw * 6; H = sum(rh) + 44
+    W = cw * len(SUITS); H = sum(rh) + 44
     im = Image.fromarray(np.full((H, W, 3), (118, 168, 214), np.uint8)); dr = ImageDraw.Draw(im)
     for i, (suit, col) in enumerate(zip(SUITS, cols)):
         y = 30

@@ -32,9 +32,9 @@ const faceN = (s) => new THREE.Vector3(-0.86, 0, -0.5 * s).normalize();         
 const rightOf = (n) => new THREE.Vector3().crossVectors(U, n).normalize();
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
-const waveU = { uT: { value: 0 } };
+export const waveU = { uT: { value: 0 } };
 export const sideTime = (t) => { waveU.uT.value = t; };
-function flagMaterial(map) {
+export function flagMaterial(map) {
   const m = new THREE.MeshBasicMaterial({ map, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uT = waveU.uT;

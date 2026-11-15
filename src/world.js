@@ -34,7 +34,8 @@ export function terrainY(x, z) {
 }
 
 const bobU = { uT: { value: 0 }, uA: { value: 0 }, uS: { value: 3 } };
-function bobMat(map) {
+export function bobTick(t, amp) { bobU.uT.value = t; bobU.uA.value = 0.05 + amp * 0.35; bobU.uS.value = 3 + amp * 7; }
+export function bobMat(map) {
   const m = new THREE.MeshBasicMaterial({ map, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide });
   m.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, bobU); sh.vertexShader = 'attribute float aPh; uniform float uT; uniform float uA; uniform float uS;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed.y += max(0.0, sin(uT * uS + aPh)) * uA * 0.9;'); };
   return m;

@@ -3,6 +3,8 @@
 | Asset | Source | License |
 |---|---|---|
 | Skier (all sprite animations: idle/wave, crouch, takeoff, V-flight, pre-landing, telemark, sloppy, skid, fist pump, showboat; six suits; unlock skis) | Painted with the GenerateImage tool as multi-frame sheets on a green key background, using one approved base character sheet as the reference (`art_src/sprites/`). Keyed, sliced, anchored, hue-recoloured per suit (Wyatt, Reid, Brady, Stetson, Gold, Galaxy), bib numbers stamped and packed into lossless-WebP atlases + JSON frame map by `tools/sprites.py`. The old Quaternius "Man" 3D skier was removed. No images of real people. | Original work |
+| Ski Park skier animations (ride/carve, pop, air, landing, backflip, front flip, 360 spin, rail/box grind, grab; seven suits + Aurora, Neon skis) | Painted with the GenerateImage tool as multi-frame sheets on a green key background using the same approved base character as the reference (`art_src/park/`), keyed, sliced, uniformly scaled, hue-recoloured and packed into lossless-WebP atlases by `tools/park_sprites.py`. No images of real people. | Original work |
+| Ski Park ramps (small/medium/big kickers), rail, box, start and finish gates, trick signs, snowmen | Painted with the GenerateImage tool on a green key background, keyed and packed into one lossy WebP atlas with ride-surface profiles by `tools/park_art.py` (`art_src/park/`). All brands invented. | Original work |
 | Pine tree ("Pine Tree with Snow") | Quaternius, via poly.pizza (id 17vQv2X5rh) | CC0 1.0. Decimated to ~700 tris (`tools/make_tree.py`). |
 | First-person ski tips (`models/gear_ski.glb`) | Modelled in Blender for this game (`tools/make_gear.py`) | Original work |
 | Three.js r160 | https://threejs.org | MIT |

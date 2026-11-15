@@ -6,6 +6,7 @@ import { buildWorld, terrainY } from './world.js';
 import { Spray, Confetti, Streaks } from './fx.js';
 import * as P from './physics.js';
 import * as A from './audio.js';
+import { createPark, PARK_UNLOCKS } from './park.js';
 
 const $ = (id) => document.getElementById(id);
 const V3 = THREE.Vector3, Q4 = THREE.Quaternion;
@@ -62,7 +63,8 @@ const el = { title: $('title'), hud: $('hud'), result: $('result'), bg: $('bg'),
 
 // ---------------------------------------------------------------- game state
 const G = { state: 'loading', t: 0, ts: 1, tsTarget: 1, wall: 0 };
-let fpSkis, fpSkiKit, world, skier, titleScene, spray, confetti, streaks;
+let fpSkis, fpSkiKit, world, skier, titleScene, spray, confetti, streaks, park, TEX, PINE;
+G.mode = store.get('mode', 'jump');
 const SUIT_CHIPS = ['wyatt', 'reid', 'brady', 'stetson'];
 let suitId = store.get('suit', 'wyatt'); let equip = store.get('equip', { suit: null, ski: null });
 let auto = null;                             // QA autoplay
@@ -75,7 +77,7 @@ let flash = 0;
 function resize() {
   const w = window.innerWidth, h = window.innerHeight; renderer.setPixelRatio(pixelRatio); renderer.setSize(w, h, false);
   cam.aspect = w / h; cam.updateProjectionMatrix(); tcam.aspect = w / h; tcam.updateProjectionMatrix();
-  fitTitleCam();
+  fitTitleCam(); park && park.resize(w, h);
 }
 function fitTitleCam() { const a = tcam.aspect; tcam.fov = 30; tcam.position.set(0, 1.1, a > 1.6 ? 9.5 : 8); tcam.lookAt(0.0, 0.9, 0); const shift = Math.min(0.28, 0.12 + (a - 1.5) * 0.1); tcam.setViewOffset(1000, 1000, -shift * 1000, 0, 1000, 1000); tcam.updateProjectionMatrix(); }
 window.addEventListener('resize', resize); window.addEventListener('orientationchange', () => setTimeout(resize, 200));
@@ -84,7 +86,7 @@ document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: fal
 
 // ---------------------------------------------------------------- UI helpers
 function show(e, on) { e.classList.toggle('hidden', !on); }
-function setMuteIcons() { const m = A.isMuted(); ['mute', 'mute2'].forEach((i) => { $(i).textContent = m ? '🔇' : '♪'; }); }
+function setMuteIcons() { const m = A.isMuted(); ['mute', 'mute2', 'mute3'].forEach((i) => { $(i).textContent = m ? '🔇' : '♪'; }); }
 function pop(textEl, text, cls) { textEl.textContent = text; textEl.style.color = cls || '#fff'; textEl.classList.remove('show'); void textEl.offsetWidth; textEl.classList.add('show'); }
 const GRADE_COL = { PERFECT: '#ffe27a', GREAT: '#7dffb0', GOOD: '#8fd2ff', OK: '#ffffff', SLOPPY: '#ffb199' };
 function showGrade(g) { pop(el.grade, g + (g === 'OK' || g === 'GOOD' || g === 'SLOPPY' ? '' : '!'), GRADE_COL[g] || '#fff'); A.sfx(g === 'PERFECT' ? 'perfect' : g === 'GREAT' ? 'great' : g === 'GOOD' ? 'good' : 'ok'); }
@@ -95,9 +97,15 @@ function buildTitleUI() {
   const row = $('skiers'); row.innerHTML = '';
   SUIT_CHIPS.forEach((id) => { const S = SUITS[id]; const b = document.createElement('button'); b.className = 'chip txt'; b.dataset.id = id; b.innerHTML = '<span class="dot" style="background:#' + S.suit.toString(16).padStart(6, '0') + '"></span>' + S.name; b.onclick = () => { pickSuit(id); A.sfx('click'); }; row.appendChild(b); });
   const gr = $('gears'); gr.innerHTML = ''; const bd = best();
-  P.UNLOCKS.forEach((u) => { const b = document.createElement('button'); const ok = bd >= u.need; b.className = 'chip gear txt' + (ok ? '' : ' locked'); b.dataset.id = u.id; b.innerHTML = (ok ? '' : '🔒 ') + u.name + '<small>' + (ok ? (equip[u.kind] === u.id ? 'ON' : 'TAP') : u.need + ' m') + '</small>'; b.onclick = () => { if (!ok) { A.sfx('ok'); return; } equip[u.kind] = equip[u.kind] === u.id ? null : u.id; store.set('equip', equip); applyLook(); buildTitleUI(); A.sfx('click'); }; if (ok && equip[u.kind] === u.id) b.classList.add('sel'); gr.appendChild(b); });
+  const isPark = G.mode === 'park'; const pb = store.get('pbest', 0); const gl = isPark ? PARK_UNLOCKS : P.UNLOCKS; const have = isPark ? pb : bd;
+  $('glbl').textContent = isPark ? 'PARK UNLOCKS' : 'UNLOCKS';
+  gl.forEach((u) => { const b = document.createElement('button'); const ok = have >= u.need; b.className = 'chip gear txt' + (ok ? '' : ' locked'); b.dataset.id = u.id; b.innerHTML = (ok ? '' : '🔒 ') + u.name + '<small>' + (ok ? (equip[u.kind] === u.id ? 'ON' : 'TAP') : u.need.toLocaleString('en-US') + (isPark ? ' pts' : ' m')) + '</small>'; b.onclick = () => { if (!ok) { A.sfx('ok'); return; } equip[u.kind] = equip[u.kind] === u.id ? null : u.id; store.set('equip', equip); applyLook(); buildTitleUI(); A.sfx('click'); }; if (ok && equip[u.kind] === u.id) b.classList.add('sel'); gr.appendChild(b); });
+  const md = $('modes'); md.innerHTML = ''; [['jump', 'SKI JUMP'], ['park', 'SKI PARK']].forEach(([id, nm]) => { const b = document.createElement('button'); b.className = 'chip txt' + (G.mode === id ? ' sel' : ''); b.dataset.id = id; b.textContent = nm; b.onclick = () => { if (G.mode !== id) { G.mode = id; store.set('mode', id); A.sfx('click'); buildTitleUI(); } }; md.appendChild(b); });
+  $('mhint').textContent = isPark ? 'Ride the park and TAP to land 7 tricks!' : 'Fly off the big hill as far as you can!';
+  if (isPark) { $('recs').innerHTML = '<div class="best txt">' + (pb ? 'PARK BEST<br>' + pb.toLocaleString('en-US') + ' pts' : 'PARK BEST<br>— — —') + '</div>'; } else {
   const recs = recordsList(); const r = $('recs'); r.innerHTML = '<div class="best txt">' + (bd ? 'HILL RECORD<br>' + bd.toFixed(1) + ' m' : 'HILL RECORD<br>— — —') + '</div>';
   recs.slice(0, 5).forEach((x, i) => { const d = document.createElement('div'); d.className = 'rec txt'; d.innerHTML = '<img src="art/' + (i === 0 ? 'trophy' : 'medal') + '.webp" alt="">' + x.d.toFixed(0) + ' m<br>' + x.who; r.appendChild(d); });
+  }
   document.querySelectorAll('#skiers .chip').forEach((c) => c.classList.toggle('sel', c.dataset.id === suitId));
   setMuteIcons();
 }
@@ -152,9 +160,16 @@ function sampleVel() { const s = P.sampleAt(fl.sim, Math.min(fl.ft, fl.sim.tHit)
 // ---------------------------------------------------------------- run flow
 function setTimeScale(v) { G.tsTarget = v; }
 function toTitle() {
+  if (park && park.active) park.exit(); show($('presult'), false);
   G.state = 'title'; show(el.title, true); show(el.hud, false); show(el.result, false); el.bg.style.opacity = 1; el.banner.classList.remove('show'); el.newrec.classList.remove('show'); confetti && confetti.stop();
   skier.attach(titleScene); skier.ground = () => ({ y: 0, ang: 0 }); skier.root.scale.setScalar(0.8); skier.root.position.set(0, 0, 0); skier.root.rotation.set(0, 0, 0); skier.fp(false); applyLook(); skier.play('idle', 0.3, true); G.tt = 0;
   droneInit = false; A.music('title'); A.stopWind(); world && (world.cheer = 0); buildTitleUI(); G.ts = G.tsTarget = 1;
+}
+async function startGame() {
+  if (G.mode !== 'park') return startRun();
+  if (G.starting) return; G.starting = true; el.go.disabled = true; A.initAudio(); A.unlockSpeech(); A.sfx('click');
+  try { applyLook(); await park.enter(); } catch (e) { console.error(e); G.starting = false; el.go.disabled = false; return; }
+  G.starting = false; el.go.disabled = false; G.state = 'park'; show(el.title, false); show(el.result, false); show(el.hud, false); el.bg.style.opacity = 0; el.banner.classList.remove('show'); el.newrec.classList.remove('show'); confetti.stop(); A.stopWind(); streaksLevel = 0;
 }
 function startRun() {
   A.initAudio(); A.unlockSpeech(); A.music('run'); A.startWind(); A.sfx('click');
@@ -172,6 +187,7 @@ function startRun() {
 function beginInrun() { G.state = 'inrun'; el.count.textContent = ''; pop(el.call, 'GO!', '#7dffb0'); A.sfx('go'); show(el.mSpeed, true); run.t = 0; run.v = 0.6; }
 function lipPos() { return 0.5 - 0.5 * Math.cos(2 * Math.PI * lip.t / 1.5); }
 function onTap() {
+  if (G.state === 'park') { park.onTap(); return; }
   if (G.state === 'inrun' && !run.tapped && run.t > 0.35) {
     run.tapped = true; run.speedRes = P.speedFromMeter(run.speedPos); showGrade(run.speedRes.grade); $('m-speed').querySelector('.name').textContent = run.speedRes.grade + '!'; A.sfx('tap');
   } else if (G.state === 'lip' && !lip.tapped) {
@@ -303,7 +319,8 @@ function frame(now) {
   requestAnimationFrame(frame); if (!world) return;
   const raw = Math.min(0.05, (now - last) / 1000 || 0.016); last = now; const dt = Math.min(1 / 30, raw);
   if (auto) autoplay(dt);
-  if (G.state === 'title') { update(dt); skier.billboard(tcam); renderer.setClearColor(0x000000, 0); renderer.render(titleScene, tcam); }
+  if (G.state === 'park') { if (park.active) { park.update(dt); park.render(); } }
+  else if (G.state === 'title') { update(dt); skier.billboard(tcam); renderer.setClearColor(0x000000, 0); renderer.render(titleScene, tcam); }
   else if (G.state !== 'loading') { update(dt); skier.billboard(cam); renderer.render(world.scene, cam); }
   fpsAcc += raw; fpsN++; if (fpsAcc > 2.0) { const fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; window.__fps = fps; if (G.state !== 'title' && fps < 40) slowWin++; else slowWin = 0; if (slowWin >= 2 && qLevel < 2 && !params.get('noadapt')) { slowWin = 0; qLevel++; if (qLevel === 1) { pixelRatio = Math.max(1, pixelRatio * 0.75); resize(); } else { renderer.shadowMap.enabled = false; world.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); } console.log('[quality] lowered to', qLevel); } }
 }
@@ -315,17 +332,20 @@ function autoplay(dt) {
   if (st === 'flight' && fl.sim && !fl.landTap && a.landOffset != null && fl.ft >= fl.sim.tHit - a.landOffset - 0.001 && !fl.landed) onTap();
   if (st === 'result' && a.again) { a.again--; if (a.again <= 0) { auto = null; } }
 }
-window.__game = { tcam, G, run, lip, fl, get state() { return G.state; }, startRun, toTitle, onTap, setAuto(o) { auto = o; }, P, skier: () => skier, world: () => world, cam, fps: () => window.__fps, info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures }), pr: () => pixelRatio, tap: onTap, press: () => $('go').click(), result: () => window.__lastResult, QUAL, mobile,
+window.__game = { get park() { return park; }, startGame, tcam, G, run, lip, fl, get state() { return G.state; }, startRun, toTitle, onTap, setAuto(o) { auto = o; }, P, skier: () => skier, world: () => world, cam, fps: () => window.__fps, info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures }), pr: () => pixelRatio, tap: onTap, press: () => $('go').click(), result: () => window.__lastResult, QUAL, mobile,
   warp(state) { /* QA helper: jump the world state for screenshots */ } };
 
 // ---------------------------------------------------------------- input
 const tz = $('tapzone');
 tz.addEventListener('pointerdown', (e) => { e.preventDefault(); onTap(); });
-document.addEventListener('keydown', (e) => { if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); if (G.state === 'title') startRun(); else onTap(); } });
-$('go').addEventListener('click', () => { startRun(); });
+document.addEventListener('keydown', (e) => { if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); if (G.state === 'title') startGame(); else onTap(); } });
+$('go').addEventListener('click', () => { startGame(); });
+$('pagain').addEventListener('click', () => { A.sfx('click'); G.mode = 'park'; park.exit(); startGame(); });
+$('ptotitle').addEventListener('click', () => { A.sfx('click'); toTitle(); });
+$('ptrick').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); onTap(); });
 $('again').addEventListener('click', () => { A.sfx('click'); startRun(); });
 $('totitle').addEventListener('click', () => { A.sfx('click'); toTitle(); });
-['mute', 'mute2'].forEach((id) => $(id).addEventListener('click', (e) => { e.stopPropagation(); A.initAudio(); A.setMuted(!A.isMuted()); setMuteIcons(); }));
+['mute', 'mute2', 'mute3'].forEach((id) => $(id).addEventListener('click', (e) => { e.stopPropagation(); A.initAudio(); A.setMuted(!A.isMuted()); setMuteIcons(); }));
 ['pointerdown'].forEach((ev) => document.addEventListener(ev, () => { A.initAudio(); if (G.state === 'title') A.music('title'); }, { once: false, passive: true }));
 document.addEventListener('visibilitychange', () => { if (document.hidden) { try { speechSynthesis.cancel(); } catch (e) {} } });
 
@@ -343,6 +363,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { try
   fpSkis = new THREE.Group(); [-1, 1].forEach((sd) => { const c = fpSkiKit.mk(sd); const h = new THREE.Group(); h.add(c); h.position.set(sd * 0.2, -0.66, -1.15); h.rotation.y = sd * 0.1; h.userData.sd = sd; fpSkis.add(h); }); fpSkis.visible = false; cam.add(fpSkis);
   await applyLook();
   spray = new Spray(world.scene, tex.puff, 150); confetti = new Confetti(cam, 150); streaks = new Streaks(cam, 70);
+  TEX = tex; PINE = pineGeo;
+  park = createPark({ renderer, skier, store, loadTex, getTex: () => TEX, getPine: () => PINE, QUAL, toast: (m) => { el.toast.innerHTML = m; el.toast.classList.add('show'); A.sfx('unlock'); setTimeout(() => el.toast.classList.remove('show'), 3500); } });
   resize(); toTitle(); el.go.disabled = false;
   $('loading').style.opacity = 0; setTimeout(() => $('loading').remove(), 600);
   requestAnimationFrame(frame);
