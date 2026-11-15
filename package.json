@@ -9,9 +9,10 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "esbuild": "^0.28.2",
     "three": "^0.160.0"
-  }
+  },
+  "private": true
 }

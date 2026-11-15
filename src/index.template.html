@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ski Jump</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ski Jump">
+<meta name="theme-color" content="#2e78e6">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="art/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="art/icon_512.png">
+<style>
+:root{--sl:max(env(safe-area-inset-left),47px);--sr:max(env(safe-area-inset-right),47px);--st:max(env(safe-area-inset-top),8px);--sb:max(env(safe-area-inset-bottom),8px);
+--gold:#ffd34d;--navy:#14234d;--ice:#8fd2ff;--font:'Arial Rounded MT Bold','Baloo 2','Fredoka','Trebuchet MS',system-ui,-apple-system,sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#0d1b3d;font-family:var(--font);color:#fff;overscroll-behavior:none}
+#app{position:fixed;inset:0;overflow:hidden}
+#bg{position:absolute;inset:0;background:#7fb5ee url(art/title_bg.jpg) center/cover no-repeat;transition:opacity .5s}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+.screen{position:absolute;inset:0;z-index:5;pointer-events:none}
+.screen>*{pointer-events:auto}
+.hidden{display:none!important}
+.txt{font-weight:900;text-shadow:0 .12em 0 rgba(20,35,77,.9),0 0 .35em rgba(20,35,77,.8);-webkit-text-stroke:.06em var(--navy);paint-order:stroke fill;letter-spacing:.02em}
+/* ---------- title ---------- */
+#title .logo{position:absolute;left:var(--sl);top:calc(var(--st) + 2vh);width:min(46vw,64vh*1.9,520px);filter:drop-shadow(0 .8vh 1.2vh rgba(10,25,70,.5));animation:bob 3.2s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-1.1vh) rotate(-.6deg)}}
+#title .col{position:absolute;left:var(--sl);bottom:calc(var(--sb) + 2vh);width:min(52vw,640px);display:flex;flex-direction:column;gap:1.4vh}
+.row{display:flex;gap:1vw;align-items:center;flex-wrap:nowrap}
+.lbl{font-size:max(11px,2.3vh);color:#fff;opacity:.95}
+.chip{position:relative;flex:1 1 0;min-width:0;height:max(44px,9.2vh);background:url(art/btn_pill.png) center/100% 100% no-repeat;border:0;color:#fff;font:inherit;font-size:max(13px,2.9vh);padding:0 0 .6vh 0;display:flex;align-items:center;justify-content:center;gap:.6vw;cursor:pointer;transition:transform .12s,filter .12s}
+.chip .dot{width:max(12px,2.6vh);height:max(12px,2.6vh);border-radius:50%;border:.35vh solid #fff;box-shadow:0 0 0 .25vh var(--navy);flex:none}
+.chip.sel{transform:scale(1.1);filter:drop-shadow(0 0 1.2vh #ffe27a) brightness(1.12)}
+.chip:active{transform:scale(.95)}
+.chip.locked{filter:grayscale(.85) brightness(.75)}
+.chip.gear{font-size:max(11px,2.3vh);flex-direction:column;line-height:1.05;gap:0;padding-bottom:.5vh}
+.chip.gear small{font-size:.72em;opacity:.9}
+#recs{display:flex;gap:.8vw;align-items:flex-end;min-height:max(40px,9vh)}
+#recs .rec{display:flex;flex-direction:column;align-items:center;font-size:max(10px,2.1vh);line-height:1.05;text-align:center;min-width:6.5vh}
+#recs .rec img{height:max(26px,6vh);filter:drop-shadow(0 .4vh .5vh rgba(0,0,0,.4))}
+#recs .best{margin-right:1vw;font-size:max(13px,2.8vh)}
+#go{position:absolute;right:var(--sr);bottom:calc(var(--sb) + 1.5vh);width:min(30vh,24vw);height:min(30vh,24vw);border:0;background:url(art/btn_go.png) center/contain no-repeat;color:#fff;font:inherit;font-size:min(8.5vh,6.5vw);cursor:pointer;animation:pulse 1.2s ease-in-out infinite;display:flex;align-items:center;justify-content:center;padding-bottom:1vh}
+@keyframes pulse{50%{transform:scale(1.07)}}
+#go:active{transform:scale(.93)}
+.round{position:absolute;top:calc(var(--st) + 1vh);width:max(44px,9vh);height:max(44px,9vh);border-radius:50%;background:rgba(20,35,77,.55);border:.4vh solid #fff;color:#fff;font-size:max(18px,4.4vh);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9;padding:0;font-family:inherit}
+#mute{right:var(--sr)}
+/* ---------- HUD ---------- */
+#hud .dist{position:absolute;left:var(--sl);top:calc(var(--st) + 1vh);font-size:max(26px,8vh);line-height:1}
+#hud .dist small{font-size:.42em;display:block;letter-spacing:.1em;opacity:.95}
+#hud .sub{position:absolute;left:var(--sl);top:calc(var(--st) + 11.5vh);font-size:max(13px,3vh)}
+#hud .kp{position:absolute;left:50%;transform:translateX(-50%);top:calc(var(--st) + .6vh);font-size:max(12px,2.6vh);opacity:.9}
+#count{position:absolute;left:0;right:0;top:22vh;text-align:center;font-size:max(60px,24vh);line-height:1;z-index:7}
+#call{position:absolute;left:0;right:0;top:30vh;text-align:center;font-size:max(30px,11vh);line-height:1;z-index:7;transform:scale(0);opacity:0}
+#call.show{animation:callin 1.1s ease-out forwards}
+@keyframes callin{0%{transform:scale(.2) rotate(-6deg);opacity:0}15%{transform:scale(1.15) rotate(2deg);opacity:1}30%{transform:scale(1)}80%{opacity:1}100%{transform:scale(1.05) translateY(-4vh);opacity:0}}
+#tapzone{position:absolute;inset:0;z-index:4}
+/* ---------- meters ---------- */
+.meter{position:absolute;left:50%;bottom:calc(var(--sb) + 2.5vh);transform:translateX(-50%);width:min(66vw,620px);z-index:8;text-align:center;pointer-events:none}
+.meter .name{font-size:max(15px,3.6vh);margin-bottom:.6vh;animation:blink .55s steps(2) infinite}
+@keyframes blink{50%{opacity:.55}}
+.bar{position:relative;height:max(26px,6.4vh);border-radius:99px;background:linear-gradient(90deg,#3b7bff 0%,#38c9ff 38%,#4fe08a 62%,#ffd23b 82%,#ff5a3b 100%);border:.7vh solid var(--navy);box-shadow:0 0 0 .4vh #fff,0 1vh 1.5vh rgba(0,0,0,.4);overflow:visible}
+.bar .sweet{position:absolute;top:-.8vh;bottom:-.8vh;border:.5vh solid #fff;border-radius:1vh;background:rgba(255,255,255,.28);box-shadow:0 0 1.2vh #fff}
+.bar .sweet.perfect{border-color:#ffe27a;background:rgba(255,226,122,.55)}
+.bar .needle{position:absolute;top:-1.8vh;bottom:-1.8vh;width:max(8px,1.6vh);margin-left:max(-4px,-.8vh);background:#fff;border:.45vh solid var(--navy);border-radius:99px;box-shadow:0 0 1.2vh rgba(255,255,255,.9)}
+#m-launch{width:min(50vh,90vw);bottom:calc(var(--sb) + 1vh)}
+#m-launch svg{width:100%;display:block;filter:drop-shadow(0 1vh 1vh rgba(0,0,0,.4))}
+#m-land .track{position:relative;height:max(34px,8.4vh);border-radius:99px;background:linear-gradient(180deg,#183672,#254c9a);border:.7vh solid var(--navy);box-shadow:0 0 0 .4vh #fff,0 1vh 1.5vh rgba(0,0,0,.4)}
+#m-land .target{position:absolute;left:50%;top:-1vh;bottom:-1vh;width:max(46px,9vh);margin-left:max(-23px,-4.5vh);border:.6vh solid var(--gold);border-radius:1.2vh;background:rgba(255,226,122,.25);box-shadow:0 0 1.6vh var(--gold)}
+#m-land .target i{position:absolute;left:50%;top:0;bottom:0;width:.5vh;margin-left:-.25vh;background:#fff;opacity:.8}
+#m-land .mk{position:absolute;top:-1.6vh;bottom:-1.6vh;width:max(14px,3vh);margin-left:max(-7px,-1.5vh);background:linear-gradient(180deg,#fff,#b8f0ff);border:.5vh solid var(--navy);border-radius:1vh;box-shadow:0 0 1.5vh #fff}
+.grade{position:absolute;left:50%;bottom:calc(var(--sb) + 14vh);transform:translateX(-50%) scale(0);font-size:max(26px,9vh);z-index:9;white-space:nowrap;pointer-events:none}
+.grade.show{animation:gradein .9s ease-out forwards}
+@keyframes gradein{0%{transform:translateX(-50%) scale(.2);opacity:0}18%{transform:translateX(-50%) scale(1.2);opacity:1}35%{transform:translateX(-50%) scale(1)}80%{opacity:1}100%{transform:translateX(-50%) translateY(-5vh) scale(1);opacity:0}}
+/* ---------- distance banner / results ---------- */
+#banner{position:absolute;left:50%;top:calc(var(--st) + 3vh);width:min(54vw,82vh,560px);transform:translateX(-50%) translateY(-140%);z-index:8;text-align:center;pointer-events:none}
+#banner.show{animation:dropin .7s cubic-bezier(.2,1.4,.4,1) forwards}
+@keyframes dropin{to{transform:translateX(-50%) translateY(0)}}
+#banner img{width:100%;display:block;filter:drop-shadow(0 1vh 1vh rgba(0,0,0,.35))}
+#banner .n{position:absolute;left:0;right:0;top:46%;transform:translateY(-50%);font-size:min(13vh,9vw);color:#fff;line-height:1}
+#banner .u{font-size:.45em;margin-left:.15em}
+#banner .lbl2{position:absolute;left:0;right:0;top:21%;font-size:max(11px,2.6vh);color:#ffe27a}
+#result{background:radial-gradient(ellipse at 50% 60%,rgba(10,25,70,.15),rgba(10,25,70,.62))}
+#result .panel{position:absolute;left:50%;top:calc(var(--st) + 32vh);transform:translateX(-50%);width:min(60vw,720px);display:flex;flex-direction:column;align-items:center;gap:1.1vh}
+#result .score{background:rgba(20,35,77,.72);border:.5vh solid #fff;border-radius:2vh;padding:1.4vh 2.4vw;font-size:max(13px,3.2vh);display:grid;grid-template-columns:auto auto;gap:.2vh 3vw;min-width:min(52vw,520px)}
+#result .score b{text-align:right;color:var(--gold)}
+#result .score .tot{grid-column:1/3;display:flex;justify-content:space-between;border-top:.3vh solid rgba(255,255,255,.6);margin-top:.5vh;padding-top:.6vh;font-size:1.4em}
+#result .btns{display:flex;gap:2vw;margin-top:.6vh}
+.pill{height:max(48px,10.4vh);min-width:min(26vw,250px);border:0;background:url(art/btn_pill.png) center/100% 100% no-repeat;color:#fff;font:inherit;font-size:max(15px,3.6vh);cursor:pointer;padding:0 0 .7vh 0}
+.pill.green{filter:hue-rotate(-60deg) saturate(1.3)}
+.pill:active{transform:scale(.94)}
+#newrec{position:absolute;right:calc(var(--sr) + 1vw);top:calc(var(--st) + 22vh);width:min(30vw,48vh);z-index:9;text-align:center;transform:scale(0) rotate(-12deg);pointer-events:none}
+#newrec.show{animation:recin .8s cubic-bezier(.2,1.6,.4,1) .3s forwards}
+@keyframes recin{to{transform:scale(1) rotate(-8deg)}}
+#newrec .burst{width:100%;display:block;animation:spin 8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#newrec .t{position:absolute;left:0;right:0;top:34%;font-size:max(14px,4.4vh);line-height:1;color:#ff3b3b;-webkit-text-stroke:.05em var(--navy);text-shadow:none}
+#newrec img.medal{position:absolute;left:50%;bottom:-8%;width:42%;margin-left:-21%;filter:drop-shadow(0 .6vh .8vh rgba(0,0,0,.5))}
+#unlocktoast{position:absolute;left:50%;bottom:calc(var(--sb) + 3vh);transform:translateX(-50%) translateY(200%);z-index:9;background:rgba(20,35,77,.88);border:.5vh solid var(--gold);border-radius:2vh;padding:1.2vh 2.4vw;font-size:max(14px,3.2vh);text-align:center;transition:transform .5s cubic-bezier(.2,1.4,.4,1)}
+#unlocktoast.show{transform:translateX(-50%) translateY(0)}
+#rotate{position:absolute;inset:0;z-index:30;background:#0d1b3d;display:none;align-items:center;justify-content:center;text-align:center;font-size:5vw;padding:10vw}
+@media (orientation:portrait){#rotate{display:flex}}
+#loading{position:absolute;inset:0;z-index:25;background:#0d1b3d url(art/title_bg.jpg) center/cover;display:flex;align-items:flex-end;justify-content:center;padding-bottom:12vh;font-size:max(18px,4vh);transition:opacity .5s}
+#loading .bar2{width:min(50vw,420px);height:2.4vh;border-radius:9vh;background:rgba(0,0,0,.35);border:.4vh solid #fff;margin:1vh auto 0;overflow:hidden}
+#loading .bar2 i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8fd2ff,#fff);transition:width .2s}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="bg"></div>
+  <canvas id="gl"></canvas>
+  <div id="tapzone"></div>
+
+  <div id="title" class="screen hidden">
+    <img class="logo" src="art/logo.png" alt="Ski Jump">
+    <div class="col">
+      <div class="lbl txt">PICK YOUR SKIER</div>
+      <div class="row" id="skiers"></div>
+      <div class="lbl txt">UNLOCKS</div>
+      <div class="row" id="gears"></div>
+      <div id="recs"></div>
+    </div>
+    <button id="go" class="txt" aria-label="Go">GO!</button>
+    <button id="mute" class="round" aria-label="Mute">♪</button>
+  </div>
+
+  <div id="hud" class="screen hidden">
+    <div class="dist txt"><small id="dlab">SPEED</small><span id="dnum">0</span><span style="font-size:.45em"> <span id="dunit">km/h</span></span></div>
+    <div class="sub txt" id="hsub"></div>
+    <div class="kp txt">K-POINT 120 m</div>
+    <button id="mute2" class="round" style="right:var(--sr)" aria-label="Mute">♪</button>
+    <div id="count" class="txt"></div>
+    <div id="call" class="txt"></div>
+    <div id="grade" class="grade txt"></div>
+
+    <div id="m-speed" class="meter hidden"><div class="name txt">TAP FOR POWER!</div>
+      <div class="bar"><div class="sweet" id="sw-great"></div><div class="sweet perfect" id="sw-perfect"></div><div class="needle" id="ndl"></div></div></div>
+
+    <div id="m-launch" class="meter hidden"><div class="name txt">TAP TO JUMP!</div>
+      <svg viewBox="0 0 220 128">
+        <defs><linearGradient id="lg" x1="0" x2="1"><stop offset="0" stop-color="#3b7bff"/><stop offset=".45" stop-color="#38c9ff"/><stop offset=".55" stop-color="#4fe08a"/><stop offset="1" stop-color="#ff5a3b"/></linearGradient></defs>
+        <path d="M14 112 A96 96 0 0 1 206 112" fill="none" stroke="#14234d" stroke-width="30" stroke-linecap="round"/>
+        <path d="M14 112 A96 96 0 0 1 206 112" fill="none" stroke="#fff" stroke-width="24" stroke-linecap="round"/>
+        <path d="M14 112 A96 96 0 0 1 206 112" fill="none" stroke="url(#lg)" stroke-width="18" stroke-linecap="round"/>
+        <path id="dial-great" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="24"/>
+        <path id="dial-perfect" fill="none" stroke="#ffe27a" stroke-width="24"/>
+        <g id="dial-needle" transform="translate(110 112)"><g id="dial-rot"><path d="M-7 0 L0 -100 L7 0 Z" fill="#fff" stroke="#14234d" stroke-width="5" stroke-linejoin="round"/><circle r="11" fill="#fff" stroke="#14234d" stroke-width="5"/></g></g>
+      </svg></div>
+
+    <div id="m-land" class="meter hidden"><div class="name txt">LAND IT!</div>
+      <div class="track"><div class="target"><i></i></div><div class="mk" id="mk"></div></div></div>
+  </div>
+
+  <div id="banner"><img src="art/banner.png" alt=""><div class="lbl2 txt" id="blab">DISTANCE</div><div class="n txt"><span id="bnum">0</span><span class="u">m</span></div></div>
+  <div id="newrec"><img class="burst" src="art/burst.png" alt=""><div class="t txt">NEW<br>RECORD!</div><img class="medal" src="art/medal.png" alt=""></div>
+
+  <div id="result" class="screen hidden">
+    <div class="panel">
+      <div class="score txt" id="score"></div>
+      <div class="btns"><button class="pill green txt" id="again">JUMP AGAIN</button><button class="pill txt" id="totitle">TITLE</button></div>
+    </div>
+  </div>
+  <div id="unlocktoast" class="txt"></div>
+  <div id="rotate" class="txt">Turn your device sideways to play!</div>
+  <div id="loading" class="txt"><div>Loading…<div class="bar2"><i id="lbar"></i></div></div></div>
+</div>
+<script>/*GAME*/</script>
+</body>
+</html>
