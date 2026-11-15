@@ -19,7 +19,7 @@ with sync_playwright() as p:
     if full: pg.screenshot(path=f'{OUT}{tag}_title_jump.png')
     pg.click('#modes .chip[data-id=park]',force=True); time.sleep(0.5)
     pg.screenshot(path=f'{OUT}{tag}_title.png')
-    pg.click('#go',force=True)
+    pg.click('#go',force=True); tgo=time.time()
     pg.wait_for_function('window.__game.state==="park" && window.__game.park.sim && window.__game.park.state!=="idle"',timeout=90000)
     inf=pg.evaluate('window.__game.park.info()'); ev=inf['ev']; tg=inf['target']; print('dur',inf['dur'],'targets',[round(x,2) for x in tg])
     for j,e in enumerate(ev): print(IDS[j], {k:round(v,2) for k,v in e.items()})
@@ -37,6 +37,7 @@ with sync_playwright() as p:
         else:
             sched.append((f'trick_{i}', e['tOn']+ (e['tRel']-e['tOn'])*0.55)); sched.append((f'popup_{i}', e['tRel']+0.4))
     keep={'riding','approach_back','trick_grab','trick_rail','trick_back','trick_box','trick_spin','trick_front','trick_big','popup_big','popup_back','approach_big'} if full else {'approach_back','trick_back','trick_big'}
+    if mode=='video': keep=set()
     sched=sorted([s for s in sched if s[0] in keep], key=lambda x:x[1])
     pg.evaluate('(a)=>{window.__game.park.pauseAt=a}',[s[1] for s in sched])
     t0=time.time(); k=0; finished=False; fin_shot=False
@@ -50,5 +51,5 @@ with sync_playwright() as p:
             time.sleep(1.3); pg.screenshot(path=f'{OUT}{tag}_finish.png'); finished=True; break
         time.sleep(0.12 if mode!='video' else 0.3)
     inf=pg.evaluate('window.__game.park.info()'); print('res',inf['rt'],'score',inf['score'],'last',pg.evaluate('window.__lastParkResult'),'fps',pg.evaluate('window.__game.fps()'),'finished',finished,'elapsed',round(time.time()-t0))
-    print('ERRORS',errs)
+    print('ERRORS',errs,'wall_since_go',round(time.time()-tgo,1))
     ctx.close(); b.close()
