@@ -134,7 +134,7 @@ function camDrone(dt, mode) {
   const r = skier.root.position; const t = G.wall;
   let dz = 3.8, dy = 2.5, back = 5.0, lx = 8.0, ly = -2.3, fov = 40, kp = 9, kl = 12;
   if (mode === 'land') { dz = 4.0; dy = 2.2; back = 4.2; lx = 5.0; ly = -0.3; fov = 40; kp = 6; kl = 8; }
-  if (mode === 'celebrate') { dz = 8.4; dy = 3.0; back = 0; lx = 0.4; ly = 2.3; fov = 42; kp = 3; kl = 4; }
+  if (mode === 'celebrate') { dz = 10.0; dy = 3.4; back = 0; lx = 0.4; ly = 2.6; fov = 42; kp = 3; kl = 4; }
   const tp = new V3(r.x - back, r.y + dy, dz + Math.sin(t * 0.7) * 0.25);
   const tl = new V3(r.x + lx, r.y + ly, -0.6);
   if (!droneInit) { droneP.copy(tp); droneL.copy(tl); camState.fov = fov; droneInit = true; }
