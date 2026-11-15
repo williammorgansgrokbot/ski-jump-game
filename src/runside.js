@@ -92,13 +92,13 @@ export function buildRunSide(scene, tex, Q, helpers) {
   for (let a = 7; a < L - 2; a += 8) {
     const si = k % 2 ? 1 : -1; k++;
     // flags: both sides every 8 m
-    for (const s of [-1, 1]) {
-      const p = P(a + (s > 0 ? 2 : 0)); const n = faceN(s), r = rightOf(n); const zc = s * 3.3; const base = p.y - 0.35; const H = 4.6;
+    if (a > 12) for (const s of [-1, 1]) {   // none right at the start gate: keeps the top corners clear
+      const p = P(a + (s > 0 ? 2 : 0)); const n = faceN(s), r = rightOf(n); const zc = s * 4.7; const base = p.y - 0.35; const H = 4.2;
       pole(p.x, base, base + H, zc, 0.09, 0xf2f2f8); metal.push(new THREE.SphereGeometry(0.1, 6, 4).translate(p.x, base + H + 0.08, zc));
       const fn = FLAG[(k * 2 + (s > 0 ? 5 : 0)) % FLAG.length]; const fa = rectAspect(fn); const fw = 1.9, fh = fw / fa;
       // flag hangs from the pole toward the track side (r direction), top at pole top
       const ph = k * 1.3 + s; const pos0 = V(p.x, base + H - fh, zc);
-      const rr = r.clone().multiplyScalar(s > 0 ? -1 : 1);
+      const rr = r.clone().multiplyScalar(s > 0 ? 1 : -1);   // hang outward, away from the track, so nothing crosses the top corners
       flags.quad(pos0.clone().addScaledVector(rr, fw / 2 + 0.05), rr, U, fw, fh, rectUV(fn), ph);
     }
     // light posts (painted sprites)
