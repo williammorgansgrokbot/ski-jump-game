@@ -2,7 +2,7 @@
 
 | Asset | Source | License |
 |---|---|---|
-| Skier base mesh and rig ("Man") | Quaternius, via poly.pizza (id HMnuH5geEG) | CC0 1.0. Subdivided, re-weighted materials, toon-restyled and given new baked animation clips in this project (`tools/make_skier.py`, `src/anim.js`). |
+| Skier base mesh and rig ("Man") | Quaternius, via poly.pizza (id HMnuH5geEG) | CC0 1.0. Subdivided, toon-restyled (suit panels, bib numbers, rim light, glossy helmet, reflective goggles, bigger head and gloves, painted-style face decals) and given new baked animation clips in this project (`tools/make_skier.py`, `src/anim.js`). |
 | Pine tree ("Pine Tree with Snow") | Quaternius, via poly.pizza (id 17vQv2X5rh) | CC0 1.0. Decimated to ~700 tris (`tools/make_tree.py`). |
 | Helmet, goggles, jump skis | Modelled in Blender for this game (`tools/make_gear.py`) | Original work |
 | Three.js r160 | https://threejs.org | MIT |
