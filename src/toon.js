@@ -11,10 +11,31 @@ export function gradient(steps) {
   t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; t.__steps = steps;
   return (_grad = t);
 }
+// opts: rim (hex) rim-light colour, gloss (0..1) hard specular glint, panels (shared uniforms {trim,accent}) uses the aPanel vertex attribute
 export function toonMat(color, opts) {
   opts = opts || {};
   const m = new THREE.MeshToonMaterial({ color: new THREE.Color(color), gradientMap: gradient(3) });
   if (opts.emissive) { m.emissive = new THREE.Color(opts.emissive); }
+  if (opts.rim != null || opts.gloss || opts.panels) {
+    const rim = new THREE.Color(opts.rim != null ? opts.rim : 0xffffff), gloss = opts.gloss || 0, rimAmt = opts.rimAmt != null ? opts.rimAmt : 0.5;
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.rimCol = { value: rim };
+      if (opts.panels) { sh.uniforms.pTrim = opts.panels.trim; sh.uniforms.pAccent = opts.panels.accent; }
+      let vs = sh.vertexShader, fs = sh.fragmentShader;
+      if (opts.panels) {
+        vs = 'attribute vec2 aPanel; varying vec2 vPanel;\n' + vs.replace('#include <begin_vertex>', '#include <begin_vertex>\n vPanel = aPanel;');
+        fs = 'varying vec2 vPanel; uniform vec3 pTrim; uniform vec3 pAccent;\n' + fs.replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb = mix(mix(diffuseColor.rgb, pTrim, smoothstep(0.46, 0.54, vPanel.x)), pAccent, smoothstep(0.46, 0.54, vPanel.y));');
+      }
+      fs = 'uniform vec3 rimCol;\n' + fs.replace('#include <opaque_fragment>', `
+        { vec3 Vv = normalize(vViewPosition); float ndv = clamp(dot(normal, Vv), 0.0, 1.0);
+          float rimK = smoothstep(0.55, 0.95, 1.0 - ndv); outgoingLight += rimCol * rimK * ${rimAmt.toFixed(3)};
+          ${gloss ? `float sp = clamp(dot(normal, normalize(normalize(vec3(0.35, 0.65, 0.7)) + Vv)), 0.0, 1.0); outgoingLight += vec3(1.0) * smoothstep(0.955, 0.965, sp) * ${gloss.toFixed(3)};
+          outgoingLight += vec3(1.0) * smoothstep(0.992, 0.996, clamp(dot(normal, normalize(normalize(vec3(-0.5, 0.4, 0.6)) + Vv)), 0.0, 1.0)) * ${(gloss * 0.6).toFixed(3)};` : ''} }
+        #include <opaque_fragment>`);
+      sh.vertexShader = vs; sh.fragmentShader = fs;
+    };
+    m.customProgramCacheKey = () => 'toonx' + (opts.panels ? 'P' : '') + gloss + ':' + rimAmt;
+  }
   return m;
 }
 // inverted-hull outline for skinned or rigid meshes (works with skinning: pushes along skinned normal)

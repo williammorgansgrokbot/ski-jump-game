@@ -228,7 +228,7 @@ function update(dt) {
   G.wall += dt; A.windLevel && (G.state === 'inrun' || G.state === 'flight' || G.state === 'lip' ? A.windLevel(Math.min(1, (G.state === 'flight' ? 1.0 : run.v / 26) * 0.6), 0.5 + 0.5 * Math.sin(G.wall * 3.1) * Math.sin(G.wall * 1.7)) : A.windLevel(0, 0));
   G.ts += (G.tsTarget - G.ts) * Math.min(1, dt * (G.tsTarget < G.ts ? 12 : 5)); const gdt = dt * G.ts;
   const st = G.state;
-  if (st === 'title') { G.tt = (G.tt || 0) + dt; if (G.tt > 6.5) { G.tt = 0; skier.play(Math.random() < 0.5 ? 'cheerShow' : 'cheerFist', 0.3); G.titleCheer = 2.8; } if (G.titleCheer > 0) { G.titleCheer -= dt; if (G.titleCheer <= 0) skier.play('idle', 0.5); } skier.update(dt); skier.root.rotation.y = -1.25 + Math.sin(G.wall * 0.5) * 0.15; }
+  if (st === 'title') { G.tt = (G.tt || 0) + dt; if (G.tt > 6.5) { G.tt = 0; skier.play(Math.random() < 0.5 ? 'cheerShow' : 'cheerFist', 0.3); G.titleCheer = 2.8; } if (G.titleCheer > 0) { G.titleCheer -= dt; if (G.titleCheer <= 0) skier.play('idle', 0.5); } skier.update(dt); if (!window.__freeze) skier.root.rotation.y = -1.25 + Math.sin(G.wall * 0.5) * 0.15; }
   else if (st === 'ready') {
     G.readyT += dt; const n = 3 - Math.floor(G.readyT / 0.55); if (n >= 1) { if (el.count.textContent !== String(n)) { el.count.textContent = String(n); A.sfx('beep'); } } else beginInrun();
     skier.update(gdt); camFP(dt); applyCam(dt);
@@ -309,7 +309,7 @@ function autoplay(dt) {
   if (st === 'flight' && fl.sim && !fl.landTap && a.landOffset != null && fl.ft >= fl.sim.tHit - a.landOffset - 0.001 && !fl.landed) onTap();
   if (st === 'result' && a.again) { a.again--; if (a.again <= 0) { auto = null; } }
 }
-window.__game = { G, run, lip, fl, get state() { return G.state; }, startRun, toTitle, onTap, setAuto(o) { auto = o; }, P, skier: () => skier, world: () => world, cam, fps: () => window.__fps, info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures }), pr: () => pixelRatio, tap: onTap, press: () => $('go').click(), result: () => window.__lastResult, QUAL, mobile,
+window.__game = { tcam, G, run, lip, fl, get state() { return G.state; }, startRun, toTitle, onTap, setAuto(o) { auto = o; }, P, skier: () => skier, world: () => world, cam, fps: () => window.__fps, info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures }), pr: () => pixelRatio, tap: onTap, press: () => $('go').click(), result: () => window.__lastResult, QUAL, mobile,
   warp(state) { /* QA helper: jump the world state for screenshots */ } };
 
 // ---------------------------------------------------------------- input
@@ -332,7 +332,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { try
   world.scene.add(cam);
   titleScene = new THREE.Scene(); titleScene.add(new THREE.HemisphereLight(0xdff0ff, 0xaec4e6, 1.25)); const tl = new THREE.DirectionalLight(0xfff1d6, 2.0); tl.position.set(3, 5, 4); titleScene.add(tl);
   skier = new Skier(assets, { quality: mobile ? 'low' : 'high' });
-  skier.fp = function (on) { this.bones.Head.scale.setScalar(on ? 0.001 : 1.28); };
+  skier.fp = function (on) { this.bones.Head.scale.setScalar(on ? 0.001 : this.headBoneScale); };
   fpSkis = new THREE.Group(); [-1, 1].forEach((sd) => { const c = (sd < 0 ? skier.gear.skiL : skier.gear.skiR).clone(true); c.position.set(0, 0, 0); c.rotation.set(0, 0, 0); c.scale.setScalar(1); c.traverse((o) => { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; }); const h = new THREE.Group(); h.add(c); h.position.set(sd * 0.2, -0.66, -1.15); h.rotation.y = sd * 0.1; h.userData.sd = sd; fpSkis.add(h); }); fpSkis.visible = false; cam.add(fpSkis);
   spray = new Spray(world.scene, tex.puff, 150); confetti = new Confetti(cam, 150); streaks = new Streaks(cam, 70);
   resize(); toTitle(); el.go.disabled = false;
