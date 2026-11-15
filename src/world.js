@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { Batch, rectUV, rectAspect, buildRunSide, sideTime } from './runside.js';
 import { HILL, groundY, groundAngle, arcAt, xAtArc, runAt, RUN_START, K_X, HS_X } from './physics.js';
 
 const sstep = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
@@ -32,23 +33,29 @@ export function terrainY(x, z) {
   if (x < 0) y -= 0.4 * sstep((az - 6) / 8) * 0; return y;
 }
 
+const bobU = { uT: { value: 0 }, uA: { value: 0 }, uS: { value: 3 } };
+function bobMat(map) {
+  const m = new THREE.MeshBasicMaterial({ map, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide });
+  m.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, bobU); sh.vertexShader = 'attribute float aPh; uniform float uT; uniform float uA; uniform float uS;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed.y += max(0.0, sin(uT * uS + aPh)) * uA * 0.9;'); };
+  return m;
+}
 const SZ = 34;   // lateral distance of the stands from the track centre
 export function buildWorld(opts) {
   const { tex, pineGeo, quality } = opts; const Q = quality;
   const scene = new THREE.Scene(); const root = scene;
-  const HORIZON = 0xe4f1ff;
-  scene.background = new THREE.Color(0x86bdf5); scene.fog = new THREE.Fog(HORIZON, 140, 560);
+  const HORIZON = 0xf6efff;
+  scene.background = new THREE.Color(0x5db8ff); scene.fog = new THREE.Fog(HORIZON, 140, 560);
   const world = { scene, groups: {}, markers: [], passed: 0, cheer: 0, crowd: [], dogs: [], clouds: [], flags: [] };
 
   // --- sky: coded gradient dome
-  const skyMat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { top: { value: C(0x2e78e6) }, mid: { value: C(0x8cc4ff) }, hor: { value: C(HORIZON) }, sun: { value: new THREE.Vector3(0.5, 0.45, 0.7).normalize() } },
+  const skyMat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { top: { value: C(0x1558f0) }, mid: { value: C(0x46b8ff) }, hor: { value: C(HORIZON) }, sun: { value: new THREE.Vector3(0.5, 0.45, 0.7).normalize() } },
     vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 hor; uniform vec3 sun; varying vec3 vD; void main(){ float h = clamp(vD.y,0.0,1.0); vec3 c = mix(hor, mid, smoothstep(0.0,0.22,h)); c = mix(c, top, smoothstep(0.18,0.8,h)); float s = max(dot(normalize(vD), sun),0.0); c += vec3(1.0,0.9,0.7) * (pow(s,24.0)*0.35 + pow(s,400.0)*0.9); gl_FragColor = vec4(c,1.0);\n#include <colorspace_fragment>\n}' });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 16), skyMat); sky.renderOrder = -10; sky.frustumCulled = false; root.add(sky); world.sky = sky;
 
   // --- painted mountain ridge ring + clouds
   if (tex.ridge) {
-    const geo = new THREE.CylinderGeometry(700, 700, 230, 40, 1, true); const m = new THREE.MeshBasicMaterial({ map: tex.ridge, transparent: true, side: THREE.BackSide, depthWrite: false, fog: false });
+    const geo = new THREE.CylinderGeometry(700, 700, 230, 40, 1, true); const m = new THREE.MeshBasicMaterial({ map: tex.ridge, transparent: true, side: THREE.BackSide, depthWrite: false, fog: false, color: 0xe2d2ff });
     tex.ridge.wrapS = THREE.RepeatWrapping; tex.ridge.repeat.set(2.0, 1); const ridge = new THREE.Mesh(geo, m); ridge.position.y = -10; ridge.renderOrder = -5; root.add(ridge); world.ridge = ridge;
   }
   if (tex.cloud) {
@@ -69,12 +76,13 @@ export function buildWorld(opts) {
     const xs = []; for (let x = -118; x <= 330; x += (x < -10 ? 4 : 3)) xs.push(x);
     const zs = []; for (let z = -150; z <= 150; z += (Math.abs(z) < 36 ? 3 : (Math.abs(z) < 70 ? 8 : 20))) zs.push(z);
     const nx = xs.length, nz = zs.length; const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3), idx = [];
-    const cSnow = C(0xf6faff), cShade = C(0xcfe0f6), cBlue = C(0xb9d2f0);
+    const TINTS = [0xffb3d9, 0xb7f2d0, 0xa9d4ff, 0xffe9a0, 0xd6bcff, 0xffc7a3].map(C); const cSnow = C(0xf6faff), cShade = C(0xcfe0f6), cBlue = C(0xb9d2f0);
     for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
       const x = xs[i], z = zs[j]; const y = terrainY(x, z); const k = (i * nz + j) * 3; pos[k] = x; pos[k + 1] = y; pos[k + 2] = z;
       const az = Math.abs(z); let c = cSnow.clone();
       const stripe = (Math.floor((z + 100) / 3) % 2) ? 0.0 : 1.0; // groomed stripes on the landing hill
       if (x > 0 && az < 22) c.lerp(cBlue, 0.06 + 0.08 * stripe); else c.lerp(cShade, 0.25 + 0.35 * sstep((az - 30) / 60));
+      if (x < 14 && az > 3.5) { const pal = TINTS; const band = Math.floor((az + x * 0.22) / 6.5); const kk = 0.62 * sstep((az - 3.5) / 5) * (1 - 0.55 * sstep((az - 40) / 50)) * (1 - sstep((x - 2) / 12)); c.lerp(pal[((band % 6) + 6) % 6], kk); }
       const n = 0.04 * Math.sin(x * 0.19 + z * 0.23) + 0.03 * Math.sin(x * 0.07 - z * 0.31); c.offsetHSL(0, 0, n * 0.6);
       col[k] = c.r; col[k + 1] = c.g; col[k + 2] = c.b;
     }
@@ -87,12 +95,12 @@ export function buildWorld(opts) {
   {
     const pts = RUN_PTS; const mk = (z, dy) => pts.map((p) => new THREE.Vector3(p.x, p.y + dy, z));
     const ice = new THREE.Group(); const geos = [];
-    const lanes = [[-1.25, -0.9, 0xdce9fb], [-0.9, -0.62, 0xf5fbff], [-0.62, -0.48, 0x8fb4de], [-0.48, 0.48, 0xeaf4ff], [0.48, 0.62, 0x8fb4de], [0.62, 0.9, 0xf5fbff], [0.9, 1.25, 0xdce9fb]];
+    const lanes = [[-1.25, -0.9, 0xcfe4ff], [-0.9, -0.62, 0xf5fbff], [-0.62, -0.48, 0x3fbfff], [-0.48, 0.48, 0xeaf4ff], [0.48, 0.62, 0xff5fb8], [0.62, 0.9, 0xf5fbff], [0.9, 1.25, 0xffe0f0]];
     lanes.forEach((l) => geos.push(stripGeo(mk(l[0], 0.01), mk(l[1], 0.01), l[2], true)));
     // walls
     [-1, 1].forEach((s) => {
       const zi = 1.25 * s, zo = 1.5 * s, wh = 0.75;
-      geos.push(stripGeo(mk(zi, 0.0), mk(zi, wh), 0x7a5232, s > 0)); geos.push(stripGeo(mk(zi, wh), mk(zo, wh), 0xcf9c5f, s > 0)); geos.push(stripGeo(mk(zo, wh), mk(zo, -0.1), 0x5c3c22, s > 0));
+      geos.push(stripGeo(mk(zi, 0.0), mk(zi, wh), 0x2f43a0, s > 0)); geos.push(stripGeo(mk(zi, wh), mk(zo, wh), 0xffd23f, s > 0)); geos.push(stripGeo(mk(zo, wh), mk(zo, -0.1), 0x5c3c22, s > 0));
     });
     const m = new THREE.Mesh(mergeGeometries(geos, false), lambertVC({ side: THREE.DoubleSide })); m.receiveShadow = true; m.name = 'track'; root.add(m); world.track = m;
     // trestle tower
@@ -117,38 +125,41 @@ export function buildWorld(opts) {
       const mat = new THREE.MeshBasicMaterial({ map: tex.bunting, transparent: true, side: THREE.DoubleSide, fog: true });
       const make = (w, x, y, z, ry) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.45), mat); m.position.set(x, y, z); m.rotation.y = ry; root.add(m); world.flags.push(m); return m; };
       make(11, s0.x + 4, s0.y + 9, 0, Math.PI / 2); make(11, s0.x - 5.5, s0.y + 9.6, 0, Math.PI / 2);
-      for (let k = 0; k < 4; k++) { const sx = 55 + k * 40; make(18, sx, terrainY(sx, 23) + 7, 0, 0).position.z = 23; }
-      for (let k = 0; k < 4; k++) { const sx = 55 + k * 40; make(18, sx, terrainY(sx, -23) + 7, -23, 0); }
+      const bg = []; for (const sd of [-1, 1]) for (let k = 0; k < 4; k++) { const sx = 55 + k * 40; const g = new THREE.PlaneGeometry(18, 18 * 0.45); g.translate(sx, terrainY(sx, sd * 23) + 7, sd * 23); bg.push(g); }
+      const bm = new THREE.Mesh(mergeGeometries(bg, false), mat); root.add(bm);
     }
   }
 
+  // --- colourful in-run side graphics (banners, flags, gates, signs, lights, gallery crowd)
+  { const rs = buildRunSide(scene, tex, Q, { terrainY, bobMat, runY }); world.runSide = rs; rs.dogs.forEach((d) => world.dogs.push(d)); }
+
   // --- stands + painted crowd
   {
-    const sg = []; const rows = 4;
+    const sg = []; const rows = 4; const landB = new Batch();
     [-1, 1].forEach((side) => {
       for (let x0 = 44; x0 < 200; x0 += 4) {
         const gx = x0 + 2; const gy = groundY(gx);
         for (let r = 0; r < rows; r++) { const z = side * (SZ + r * 1.9); const y = terrainY(gx, z) + r * 1.15; sg.push(box(4.2, 1.15 * (r + 1) + 0.6, 1.9, gx, y + 0.55 - 0.45, z, r % 2 ? 0x8d6a45 : 0xa77c4e)); }
       }
       // railing / ad boards along the track edge
-      for (let x0 = 36; x0 < 215; x0 += 6) { const gx = x0 + 3; const z = side * 24.2; const y = terrainY(gx, z); const colr = [0xe84c4c, 0x3d78e8, 0xf2c230, 0x3dbf6a][((x0 / 6) | 0) % 4]; sg.push(box(5.6, 1.2, 0.3, gx, y + 0.65, z, colr)); sg.push(box(5.8, 0.18, 0.4, gx, y + 1.3, z, 0xffffff)); }
+      for (let x0 = 36; x0 < 215; x0 += 6) { const gx = x0 + 3; const z = side * 24.2; const y = terrainY(gx, z); sg.push(box(5.8, 0.12, 0.3, gx, y + 0.08, z, 0xffffff)); sg.push(box(5.8, 0.12, 0.34, gx, y + 1.5, z, [0xff5d73, 0xffd23f, 0x45b6fe, 0x5be37d][((x0 / 6) | 0) % 4])); if (tex.side) { const nm = 'banner' + ((((x0 / 6) | 0) * 3 + (side > 0 ? 1 : 0)) % 8); const asp = rectAspect(nm); const w = 5.6, h = w / asp; landB.quad(new THREE.Vector3(gx, y + 0.12, z - side * 0.2), new THREE.Vector3(-side, 0, 0), new THREE.Vector3(0, 1, 0), w, h, rectUV(nm)); } }
     });
     const m = new THREE.Mesh(mergeGeometries(sg, false), lambertVC()); m.receiveShadow = true; root.add(m);
+    if (landB.n) { const lm = new THREE.Mesh(landB.geometry(), new THREE.MeshBasicMaterial({ map: tex.side, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide })); root.add(lm); }
     // crowd planes
     const texes = [tex.crowdA, tex.crowdB].filter(Boolean);
     if (texes.length) {
-      const W = 20;
+      const W = 20; const bats = texes.map(() => new Batch());
       [-1, 1].forEach((side) => {
         for (let x0 = 46; x0 < 200; x0 += 17) {
           for (let r = 0; r < 3; r++) {
-            const t = texes[(((x0 / 17) | 0) + r) % texes.length]; const ar = t.image ? t.image.height / t.image.width : 0.4;
-            const mat = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.35, fog: true, side: THREE.DoubleSide });
+            const ti = (((x0 / 17) | 0) + r) % texes.length; const t = texes[ti]; const ar = t.image ? t.image.height / t.image.width : 0.4;
             const gx = x0 + W / 2 - (r * 5); const z = side * (SZ + 0.6 + r * 1.9); const baseY = terrainY(gx, z) + r * 1.15 + 0.55;
-            const pl = new THREE.Mesh(new THREE.PlaneGeometry(W, W * ar), mat); pl.position.set(gx, baseY + (W * ar) / 2, z); pl.rotation.y = side < 0 ? 0 : Math.PI; pl.userData = { base: baseY + (W * ar) / 2, ph: Math.random() * 6.28, h: W * ar };
-            pl.scale.set(side < 0 ? 1 : -1, 1, 1); root.add(pl); world.crowd.push(pl);
+            bats[ti].quad(new THREE.Vector3(gx, baseY, z), new THREE.Vector3(-side, 0, 0), new THREE.Vector3(0, 1, 0), W, W * ar, [0, 1, 1, 0], Math.random() * 6.28);
           }
         }
       });
+      bats.forEach((b, i) => { if (b.n) root.add(new THREE.Mesh(b.geometry(), bobMat(texes[i]))); });
     }
     // dogs
     [['stormy', 0.2, 112, -1], ['emma', 0.2, 124, -1], ['stormy', 0.2, 76, 1], ['emma', 0.2, 148, 1]].forEach(([nm, _, x, side], i) => {
@@ -169,24 +180,28 @@ export function buildWorld(opts) {
     im.count = k; im.instanceMatrix.needsUpdate = true; im.castShadow = false; im.receiveShadow = false; root.add(im); world.trees = im;
   }
 
-  // --- distance lines on the landing slope + number boards
+  // --- distance lines on the landing slope (one InstancedMesh) + number boards (one merged mesh)
   {
-    const lineGeo = new THREE.PlaneGeometry(1, 1);
-    for (let d = 30; d <= 160; d += 10) {
-      const x = xAtArc(d); const isK = d === 120, isHS = d === 130; const w = isK ? 1.4 : (d % 50 === 0 ? 0.9 : 0.55);
-      const mat = new THREE.MeshBasicMaterial({ color: isK ? 0xff3b3b : (isHS ? 0xffd23b : 0x3b7bff), transparent: true, opacity: isK ? 0.95 : 0.78, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-      const m = new THREE.Mesh(lineGeo, mat); m.scale.set(w, 44, 1); m.rotation.order = 'YXZ'; const ang = groundAngle(x); m.rotation.x = -Math.PI / 2 + ang; m.rotation.x = -Math.PI / 2; m.rotation.set(-Math.PI / 2, 0, 0); m.rotation.order = 'ZXY'; 
-      // lay flat on the slope: rotate about z so plane normal follows the surface normal
-      m.rotation.set(0, 0, 0); m.quaternion.setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)); const qs = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -ang); m.quaternion.premultiply(qs);
-      m.position.set(x, groundY(x) + 0.06, 0); m.scale.set(w, 44, 1); m.userData = { d, x, base: mat.color.clone(), lit: false, t: 0, w, isK }; root.add(m); world.markers.push(m);
-      // board
-      const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64; const g = cv.getContext('2d'); g.fillStyle = isK ? '#d62b2b' : (isHS ? '#e0a300' : '#2e63d8'); g.fillRect(0, 0, 128, 64); g.strokeStyle = '#fff'; g.lineWidth = 5; g.strokeRect(3, 3, 122, 58);
-      g.fillStyle = '#fff'; g.font = 'bold 40px Arial Black, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(isK ? 'K' + d : String(d), 64, 34);
-      const tx = new THREE.CanvasTexture(cv); tx.minFilter = THREE.LinearFilter; tx.generateMipmaps = false;
-      [-1, 1].forEach((s) => { const b = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.6), new THREE.MeshBasicMaterial({ map: tx, side: THREE.DoubleSide })); const z = s * 23.2; b.position.set(x, groundY(x) + 2.5, z); b.rotation.y = s < 0 ? 0 : Math.PI; root.add(b); const pole = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.4, 0.18), new THREE.MeshLambertMaterial({ color: 0x4e6a8e })); pole.position.set(x, groundY(x) + 1.2, z); root.add(pole); });
-    }
-    world.updateMarkers = (arcPassed, t) => { world.markers.forEach((m) => { const u = m.userData; if (!u.lit && arcPassed >= u.d) { u.lit = true; u.t = 0; } if (u.lit) { u.t += 1; const k = Math.min(1, u.t / 14); m.material.color.copy(u.base).lerp(new THREE.Color(0xffffff), 0.55 * (1 - k * 0.4)); m.material.opacity = 1; m.scale.x = u.w * (1 + 2.2 * Math.sin(Math.min(1, k) * Math.PI) * (u.t < 24 ? 1 : 0)); } }); };
-    world.resetMarkers = () => { world.markers.forEach((m) => { m.userData.lit = false; m.material.color.copy(m.userData.base); m.material.opacity = m.userData.isK ? 0.95 : 0.78; m.scale.x = m.userData.w; }); };
+    const ds = []; for (let d = 30; d <= 160; d += 10) ds.push(d);
+    const im = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), ds.length);
+    const cvs = document.createElement('canvas'); cvs.width = 512; cvs.height = 256; const g = cvs.getContext('2d'); const bb = new Batch(); const poleG = [];
+    ds.forEach((d, i) => {
+      const x = xAtArc(d); const isK = d === 120, isHS = d === 130; const w = isK ? 1.4 : (d % 50 === 0 ? 0.9 : 0.55); const ang = groundAngle(x);
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)); q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -ang));
+      const base = C(isK ? 0xff3b3b : (isHS ? 0xffd23b : 0x3b7bff)); im.setColorAt(i, base);
+      const u = { d, x, base, lit: false, t: 0, w, isK, q, pos: new THREE.Vector3(x, groundY(x) + 0.06, 0), i }; world.markers.push({ userData: u });
+      im.setMatrixAt(i, new THREE.Matrix4().compose(u.pos, q, new THREE.Vector3(w, 44, 1)));
+      const cx = (i % 4) * 128, cy = Math.floor(i / 4) * 64; g.fillStyle = isK ? '#d62b2b' : (isHS ? '#e0a300' : '#2e63d8'); g.fillRect(cx, cy, 128, 64); g.strokeStyle = '#fff'; g.lineWidth = 5; g.strokeRect(cx + 3, cy + 3, 122, 58);
+      g.fillStyle = '#fff'; g.font = 'bold 40px Arial Black, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(isK ? 'K' + d : String(d), cx + 64, cy + 34);
+      const uv = [cx / 512, 1 - cy / 256, (cx + 128) / 512, 1 - (cy + 64) / 256];
+      [-1, 1].forEach((s) => { const z = s * 23.2; bb.quad(new THREE.Vector3(x, groundY(x) + 1.7, z), new THREE.Vector3(-s, 0, 0), new THREE.Vector3(0, 1, 0), 3.2, 1.6, uv); const pg = new THREE.BoxGeometry(0.18, 2.4, 0.18); pg.translate(x, groundY(x) + 1.2, z); pg.deleteAttribute('uv'); poleG.push(colorize(pg, C(0x4e6a8e))); });
+    });
+    im.instanceMatrix.needsUpdate = true; im.frustumCulled = false; root.add(im); world.markerMesh = im;
+    const tx = new THREE.CanvasTexture(cvs); tx.colorSpace = THREE.SRGBColorSpace; root.add(new THREE.Mesh(bb.geometry(), new THREE.MeshBasicMaterial({ map: tx, side: THREE.DoubleSide }))); root.add(new THREE.Mesh(mergeGeometries(poleG, false), lambertVC()));
+    const tmpM = new THREE.Matrix4(), tmpS = new THREE.Vector3(), tmpC = new THREE.Color(), white = new THREE.Color(0xffffff);
+    const setM = (u, sx) => { tmpS.set(sx, 44, 1); im.setMatrixAt(u.i, tmpM.compose(u.pos, u.q, tmpS)); };
+    world.updateMarkers = (arcPassed) => { let dirty = false; world.markers.forEach((m) => { const u = m.userData; if (!u.lit && arcPassed >= u.d) { u.lit = true; u.t = 0; } if (u.lit && u.t < 60) { u.t += 1; const k = Math.min(1, u.t / 14); tmpC.copy(u.base).lerp(white, 0.55 * (1 - k * 0.4)); im.setColorAt(u.i, tmpC); setM(u, u.w * (1 + 2.2 * Math.sin(Math.min(1, k) * Math.PI) * (u.t < 24 ? 1 : 0))); dirty = true; } }); if (dirty) { im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true; } };
+    world.resetMarkers = () => { world.markers.forEach((m) => { const u = m.userData; u.lit = false; u.t = 0; im.setColorAt(u.i, u.base); setM(u, u.w); }); im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true; };
   }
 
   // --- snow sparkle points (twinkle in shader)
@@ -207,8 +222,7 @@ export function buildWorld(opts) {
     world.sparkles && (world.sparkles.material.uniforms.t.value = t);
     world.clouds.forEach((c) => { c.a += c.sp0 * dt * 8; c.sp.position.x = Math.cos(c.a) * c.r; c.sp.position.z = Math.sin(c.a) * c.r; });
     world.flags.forEach((f, i) => { f.rotation.z = Math.sin(t * 2 + i) * 0.03; f.position.y += Math.sin(t * 3 + i) * 0.002; });
-    const amp = world.cheer; const A = 0.05 + amp * 0.35; const sp = 3 + amp * 7;
-    for (let i = 0; i < world.crowd.length; i++) { const p = world.crowd[i]; const u = p.userData; const b = Math.max(0, Math.sin(t * sp + u.ph)); p.position.y = u.base + b * A * 0.9; p.scale.y = 1 + b * A * 0.05; }
+    sideTime(t); const amp = world.cheer; bobU.uT.value = t; bobU.uA.value = 0.05 + amp * 0.35; bobU.uS.value = 3 + amp * 7;
     world.dogs.forEach((d, i) => { const u = d.userData; const b = Math.max(0, Math.sin(t * (4 + amp * 9) + u.ph)); d.position.y = u.base + b * (0.1 + amp * 0.9); });
     if (focus) { const x = focus.x, y = focus.y; sun.position.set(x + 14, y + 55, 24); sun.target.position.set(x, y, 0); }
   };

@@ -17,7 +17,11 @@ const params = new URLSearchParams(location.search);
 const ua = navigator.userAgent;
 const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const mobile = params.get('q') === 'low' || (params.get('q') !== 'high' && (isIOS || /Android/.test(ua) || (window.matchMedia && matchMedia('(pointer:coarse)').matches)));
-const QUAL = mobile ? { pr: 1.5, shadows: true, shadowMap: 1024, shadowTower: false, trees: 90, sparkles: 220 } : { pr: 2, shadows: true, shadowMap: 2048, shadowTower: true, trees: 300, sparkles: 500 };
+const LOWQ = params.get('q') === 'low';
+// modern iPad/iPhone Safari (WebGL2): full quality; adaptive quality below still steps down if frames are slow
+const QUAL = LOWQ ? { pr: 1.25, shadows: true, shadowMap: 1024, shadowTower: false, trees: 90, sparkles: 220, runSparkles: 120 }
+  : mobile ? { pr: 2, shadows: true, shadowMap: 2048, shadowTower: true, trees: 240, sparkles: 380, runSparkles: 300 }
+  : { pr: 2, shadows: true, shadowMap: 2048, shadowTower: true, trees: 300, sparkles: 500, runSparkles: 360 };
 let qLevel = 0;
 
 // ---------------------------------------------------------------- storage
@@ -28,7 +32,7 @@ const store = {
 
 // ---------------------------------------------------------------- renderer / loading
 const canvas = $('gl');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: !mobile, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: !!params.get('shots') });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !LOWQ, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: !!params.get('shots') });
 renderer.setClearColor(0x000000, 0);
 renderer.shadowMap.enabled = QUAL.shadows; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -38,7 +42,7 @@ const tcam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
 
 const texLoader = new THREE.TextureLoader();
 function loadTex(url, srgb) { return new Promise((res) => texLoader.load(url, (t) => { if (srgb !== false) t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.anisotropy = 1; res(t); }, undefined, () => res(null))); }
-const TEXFILES = { ridge: 'ridge.png', cloud: 'cloud.png', bunting: 'bunting.png', crowdA: 'crowd_a.png', crowdB: 'crowd_b.png', stormy: 'dog_stormy.png', emma: 'dog_emma.png', puff: 'puff.png' };
+const TEXFILES = { ridge: 'ridge.webp', cloud: 'cloud.webp', bunting: 'bunting.webp', crowdA: 'crowd_a.webp', crowdB: 'crowd_b.webp', stormy: 'dog_stormy.webp', emma: 'dog_emma.webp', puff: 'puff.webp', side: 'side/side.webp', archA: 'side/arch_a.webp', archB: 'side/arch_b.webp' };
 function loadGLB(url) { return new Promise((res, rej) => new GLTFLoader().load(url, res, undefined, rej)); }
 async function loadPine() {
   const g = await loadGLB('models/pine.glb'); const geos = [];
@@ -93,7 +97,7 @@ function buildTitleUI() {
   const gr = $('gears'); gr.innerHTML = ''; const bd = best();
   P.UNLOCKS.forEach((u) => { const b = document.createElement('button'); const ok = bd >= u.need; b.className = 'chip gear txt' + (ok ? '' : ' locked'); b.dataset.id = u.id; b.innerHTML = (ok ? '' : '🔒 ') + u.name + '<small>' + (ok ? (equip[u.kind] === u.id ? 'ON' : 'TAP') : u.need + ' m') + '</small>'; b.onclick = () => { if (!ok) { A.sfx('ok'); return; } equip[u.kind] = equip[u.kind] === u.id ? null : u.id; store.set('equip', equip); applyLook(); buildTitleUI(); A.sfx('click'); }; if (ok && equip[u.kind] === u.id) b.classList.add('sel'); gr.appendChild(b); });
   const recs = recordsList(); const r = $('recs'); r.innerHTML = '<div class="best txt">' + (bd ? 'HILL RECORD<br>' + bd.toFixed(1) + ' m' : 'HILL RECORD<br>— — —') + '</div>';
-  recs.slice(0, 5).forEach((x, i) => { const d = document.createElement('div'); d.className = 'rec txt'; d.innerHTML = '<img src="art/' + (i === 0 ? 'trophy' : 'medal') + '.png" alt="">' + x.d.toFixed(0) + ' m<br>' + x.who; r.appendChild(d); });
+  recs.slice(0, 5).forEach((x, i) => { const d = document.createElement('div'); d.className = 'rec txt'; d.innerHTML = '<img src="art/' + (i === 0 ? 'trophy' : 'medal') + '.webp" alt="">' + x.d.toFixed(0) + ' m<br>' + x.who; r.appendChild(d); });
   document.querySelectorAll('#skiers .chip').forEach((c) => c.classList.toggle('sel', c.dataset.id === suitId));
   setMuteIcons();
 }
@@ -330,6 +334,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { try
   const bar = $('lbar'); let done = 0; const total = Object.keys(TEXFILES).length + 3; const tick = () => { done++; bar.style.width = (done / total * 100) + '%'; };
   const tex = {}; await Promise.all(Object.keys(TEXFILES).map((k) => loadTex('art/' + TEXFILES[k]).then((t) => { tex[k] = t; tick(); })));
   const [skiGltf, pineGeo] = await Promise.all([loadGLB('models/gear_ski.glb').then((a) => { tick(); return a; }), loadPine().then((g) => { tick(); return g; }).catch(() => null)]);
+  if (tex.side) { tex.side.generateMipmaps = true; tex.side.minFilter = THREE.LinearMipmapLinearFilter; tex.side.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy()); tex.side.needsUpdate = true; }
   world = buildWorld({ tex, pineGeo, quality: QUAL }); tick();
   world.scene.add(cam);
   titleScene = new THREE.Scene(); titleScene.add(new THREE.HemisphereLight(0xdff0ff, 0xaec4e6, 1.25)); const tl = new THREE.DirectionalLight(0xfff1d6, 2.0); tl.position.set(3, 5, 4); titleScene.add(tl);

@@ -1,7 +1,7 @@
 import sys, json, time
 from playwright.sync_api import sync_playwright
 W,H = int(sys.argv[1]), int(sys.argv[2]); tag=sys.argv[3]; mode=sys.argv[4] if len(sys.argv)>4 else 'title'
-URL='http://localhost:8765/index.html?q=low&noadapt=1&shots=1'
+URL='http://localhost:8765/index.html?noadapt=1&shots=1'
 errs=[]
 with sync_playwright() as p:
     b=p.chromium.launch(args=['--use-gl=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--autoplay-policy=no-user-gesture-required'])
@@ -18,9 +18,15 @@ with sync_playwright() as p:
         pg.click('#go',force=True)
         shots={'inrun':False,'flight':False,'landing':False,'celebrate':False,'result':False}
         t0=time.time(); lipshot=False
-        while time.time()-t0<120:
+        while time.time()-t0<float(__import__("os").environ.get("QA_TMO","120")):
             st=pg.evaluate('window.__game.state')
-            if st=='inrun' and not shots['inrun'] and pg.evaluate('window.__game.run.t')>2.2: pg.screenshot(path=f'previews/{tag}_inrun.png'); shots['inrun']=True
+            if st=='inrun':
+                rt=pg.evaluate('window.__game.run.t')
+                for k,th in enumerate([0.5,1.7,2.9,4.1]):
+                    if rt>th and not shots.get('in%d'%k):
+                        pg.screenshot(path=f'previews/{tag}_inrun{k+1}.png'); shots['in%d'%k]=True; print('inrun shot',k+1,'t=',rt)
+                        break
+                shots['inrun']=True
             if st=='lip' and not lipshot and pg.evaluate('window.__game.lip.t')>0.5: pg.screenshot(path=f'previews/{tag}_lip.png'); lipshot=True
             if st=='flight' and not shots['flight'] and pg.evaluate('window.__game.fl.ft')>1.8:
                 print('info-flight',pg.evaluate('window.__game.info()')); pg.screenshot(path=f'previews/{tag}_flight.png'); shots['flight']=True

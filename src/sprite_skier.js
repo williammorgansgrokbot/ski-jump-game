@@ -17,7 +17,7 @@ const texLoader = new THREE.TextureLoader();
 const cache = {};
 function loadAtlas(name) {
   if (cache[name]) return cache[name];
-  return (cache[name] = new Promise((res, rej) => texLoader.load('art/sprites/' + name + '_0.png', (t) => {
+  return (cache[name] = new Promise((res, rej) => texLoader.load('art/sprites/' + name + '_0.webp', (t) => {
     t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = t.magFilter = THREE.LinearFilter; t.anisotropy = 1; res(t);
   }, undefined, rej)));
 }

@@ -2,7 +2,7 @@
 import sys, numpy as np
 from PIL import Image, ImageFilter
 import scipy.ndimage as nd
-def key(path, screen='green', t0=40, t1=110, hole_min=4000):
+def key(path, screen='green', t0=40, t1=110, hole_min=4000, dom0=60):
     im = Image.open(path).convert('RGB'); a = np.asarray(im).astype(np.float32)
     bgc = np.array([0, 255, 0] if screen == 'green' else [255, 0, 255], np.float32)
     # estimate actual bg from borders
@@ -11,7 +11,7 @@ def key(path, screen='green', t0=40, t1=110, hole_min=4000):
     d = np.sqrt(((a - bgc) ** 2).sum(-1))
     if screen == 'green': dom = a[..., 1] - np.maximum(a[..., 0], a[..., 2])
     else: dom = np.minimum(a[..., 0], a[..., 2]) - a[..., 1]
-    score = np.maximum(np.clip((t1 - d) / (t1 - t0), 0, 1), np.clip((dom - 60) / 60, 0, 1))
+    score = np.maximum(np.clip((t1 - d) / (t1 - t0), 0, 1), np.clip((dom - dom0) / 60, 0, 1))
     alpha = 1 - score
     # keep only foreground components connected to meaningful mass; flood interior holes of bg that touch border only
     bgmask = alpha < 0.5
@@ -25,7 +25,7 @@ def key(path, screen='green', t0=40, t1=110, hole_min=4000):
     alpha = np.asarray(Image.fromarray((alpha * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.7))).astype(np.float32) / 255
     rgb = a.copy()
     if screen == 'green':
-        sp = np.clip(rgb[..., 1] - np.maximum(rgb[..., 0], rgb[..., 2]), 0, None) * (alpha < 0.999) * 0.95
+        sp = np.clip(rgb[..., 1] - np.maximum(rgb[..., 0], rgb[..., 2]), 0, None) * (alpha < 0.97) * 0.95
         rgb[..., 1] -= sp
         # stronger despill near edges
         edge = nd.binary_dilation(alpha < 0.5, iterations=3) & (alpha > 0.0)

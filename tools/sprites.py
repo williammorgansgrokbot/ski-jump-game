@@ -329,13 +329,13 @@ def build(write=True):
         atl = render(fn)
         if write:
             for pi, im in enumerate(atl):
-                Image.fromarray(im).quantize(256, method=Image.FASTOCTREE, dither=Image.NONE).save(OUT + 'suit_%s_%d.png' % (suit['id'], pi), optimize=True)
+                Image.fromarray(im).quantize(256, method=Image.FASTOCTREE, dither=Image.NONE).convert('RGBA').save(OUT + 'suit_%s_%d.webp' % (suit['id'], pi), 'WEBP', lossless=True, method=6)
     for kind in ('flame', 'rainbow'):
         def fn(ai, fi, a, f, kind=kind):
             return ski_overlay(f, masks(f), kind, a['anchors'][fi], fi)
         atl = render(fn)
         if write:
-            for pi, im in enumerate(atl): Image.fromarray(im).quantize(256, method=Image.FASTOCTREE, dither=Image.NONE).save(OUT + 'ski_%s_%d.png' % (kind, pi), optimize=True)
+            for pi, im in enumerate(atl): Image.fromarray(im).quantize(256, method=Image.FASTOCTREE, dither=Image.NONE).convert('RGBA').save(OUT + 'ski_%s_%d.webp' % (kind, pi), 'WEBP', lossless=True, method=6)
     if write: json.dump(meta, open(OUT + 'sprites.json', 'w'), separators=(',', ':'))
     print('bib number not drawn on:', bibreport)
     return anims, suit_frames, meta
