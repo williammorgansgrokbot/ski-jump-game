@@ -100,8 +100,8 @@ function pickSuit(id) { suitId = id; store.set('suit', id); applyLook(); documen
 function applyLook() {
   if (!skier) return; skier.setSuit(suitId); skier.rainbow = false;
   const M = skier.mats; const setc = (k, h) => { if (M[k]) M[k].color.setHex(h); };
-  if (equip.suit === 'gold') { setc('Shirt', 0xf5b800); setc('Pants', 0xf5b800); setc('H_Helmet', 0xffd84a); setc('H_Collar', 0x2b2b35); setc('H_HelmetStripe', 0x2b2b35); }
-  if (equip.suit === 'galaxy') { setc('Shirt', 0x5b2bd1); setc('Pants', 0x3b1d9c); setc('H_Helmet', 0x7a4cff); setc('H_Collar', 0x45f0ff); setc('H_HelmetStripe', 0x45f0ff); if (M.G_Lens) M.G_Lens.color.setHex(0x45f0ff); }
+  if (equip.suit === 'gold') { setc('Shirt', 0xf5b800); setc('Pants', 0xf5b800); setc('H_Helmet', 0xffd84a); setc('H_Collar', 0x2b2b35); setc('H_HelmetStripe', 0x2b2b35); skier.setPanels(0x2b2b35, 0xb88a00); }
+  if (equip.suit === 'galaxy') { setc('Shirt', 0x5b2bd1); setc('Pants', 0x3b1d9c); setc('H_Helmet', 0x7a4cff); setc('H_Collar', 0x45f0ff); setc('H_HelmetStripe', 0x45f0ff); skier.setPanels(0x45f0ff, 0x2a1580); if (M.G_Lens) M.G_Lens.color.setHex(0x45f0ff); }
   ['L', 'R'].forEach((s) => { if (equip.ski === 'flame') { setc('S_SkiTop' + s, 0xff7a1a); setc('S_SkiStripe' + s, 0xffe14a); } if (equip.ski === 'rainbow') skier.rainbow = true; });
 }
 // ---------------------------------------------------------------- camera rigs
@@ -130,15 +130,16 @@ function camFP(dt) {
 }
 const droneP = new V3(), droneL = new V3(); let droneInit = false;
 function camDrone(dt, mode) {
+  // three-quarter chase drone: behind and beside the skier, looking down the hill so the landing zone is ahead
   const r = skier.root.position; const t = G.wall;
-  let dz = 6.8, dy = 6.4, lx = 2.0, ly = -0.8, fov = 48, kp = 9, kl = 12, back = 0.8;
-  if (mode === 'land') { dz = 7.0; dy = 4.6; lx = 2.0; ly = 0.2; fov = 44; kp = 5; kl = 7; }
-  if (mode === 'celebrate') { dz = 9.0; dy = 3.4; lx = 0.4; ly = 2.1; fov = 42; kp = 3; kl = 4; }
-  const tp = new V3(r.x - back, r.y + dy, dz + Math.sin(t * 0.7) * 0.3);
-  const tl = new V3(r.x + lx, r.y + ly, 0);
+  let dz = 3.8, dy = 2.5, back = 5.0, lx = 8.0, ly = -2.3, fov = 40, kp = 9, kl = 12;
+  if (mode === 'land') { dz = 4.0; dy = 2.2; back = 4.2; lx = 5.0; ly = -0.3; fov = 40; kp = 6; kl = 8; }
+  if (mode === 'celebrate') { dz = 8.4; dy = 3.0; back = 0; lx = 0.4; ly = 2.3; fov = 42; kp = 3; kl = 4; }
+  const tp = new V3(r.x - back, r.y + dy, dz + Math.sin(t * 0.7) * 0.25);
+  const tl = new V3(r.x + lx, r.y + ly, -0.6);
   if (!droneInit) { droneP.copy(tp); droneL.copy(tl); camState.fov = fov; droneInit = true; }
-  const kyp = 1 - Math.exp(-dt * kp * 2.4), kyl = 1 - Math.exp(-dt * kl * 2.4); droneP.x += (tp.x - droneP.x) * (1 - Math.exp(-dt * kp)); droneP.y += (tp.y - droneP.y) * kyp; droneP.z += (tp.z - droneP.z) * (1 - Math.exp(-dt * kp)); droneL.x += (tl.x - droneL.x) * (1 - Math.exp(-dt * kl)); droneL.y += (tl.y - droneL.y) * kyl;
-  camState.pos.copy(droneP); camState.pos.y += Math.sin(t * 1.3) * 0.1; camState.look.copy(droneL); camState.fov = lerp(camState.fov, fov, 1 - Math.exp(-dt * 8)); camState.roll = Math.sin(t * 0.8) * 0.012;
+  const kyp = 1 - Math.exp(-dt * kp * 2.4), kyl = 1 - Math.exp(-dt * kl * 2.4); droneP.x += (tp.x - droneP.x) * (1 - Math.exp(-dt * kp)); droneP.y += (tp.y - droneP.y) * kyp; droneP.z += (tp.z - droneP.z) * (1 - Math.exp(-dt * kp)); droneL.x += (tl.x - droneL.x) * (1 - Math.exp(-dt * kl)); droneL.y += (tl.y - droneL.y) * kyl; droneL.z += (tl.z - droneL.z) * 0.2;
+  camState.pos.copy(droneP); camState.pos.y += Math.sin(t * 1.3) * 0.08; camState.look.copy(droneL); camState.fov = lerp(camState.fov, fov, 1 - Math.exp(-dt * 8)); camState.roll = Math.sin(t * 0.8) * 0.01;
   if (G.shake > 0) { camState.pos.x += (Math.random() - 0.5) * G.shake * 0.4; camState.pos.y += (Math.random() - 0.5) * G.shake * 0.4; G.shake = Math.max(0, G.shake - dt * 2.2); }
 }
 function sampleVel() { const s = P.sampleAt(fl.sim, Math.min(fl.ft, fl.sim.tHit)); return { x: s.vx, y: s.vy }; }
@@ -147,7 +148,7 @@ function sampleVel() { const s = P.sampleAt(fl.sim, Math.min(fl.ft, fl.sim.tHit)
 function setTimeScale(v) { G.tsTarget = v; }
 function toTitle() {
   G.state = 'title'; show(el.title, true); show(el.hud, false); show(el.result, false); el.bg.style.opacity = 1; el.banner.classList.remove('show'); el.newrec.classList.remove('show'); confetti && confetti.stop();
-  titleScene.add(skier.root); skier.root.scale.setScalar(1); skier.root.position.set(0, 0, 0); skier.root.rotation.set(0, -1.25, 0); skier.fp && skier.fp(false); applyLook(); skier.play('idle', 0.3);
+  titleScene.add(skier.root); skier.root.scale.setScalar(1); skier.root.position.set(0, 0, 0); skier.root.rotation.set(0, -1.25, 0); skier.fp && skier.fp(false); applyLook(); skier.play('idle', 0.3); G.tt = 6.2;
   droneInit = false; A.music('title'); A.stopWind(); world && (world.cheer = 0); buildTitleUI(); G.ts = G.tsTarget = 1;
 }
 function startRun() {
@@ -181,8 +182,8 @@ function beginLip() { G.state = 'lip'; lip.t = 0; show(el.mSpeed, false); show(e
 function takeoff() {
   const v0 = run.v; const lres = lip.res || P.launchFromMeter(lip.pos); const e = lres.e; if (!lip.res) { lip.res = lres; showGrade(lres.grade); }
   const wind = (Math.random() - 0.5) * 0.0; fl.sim = P.simulateFlight(v0, e, wind); fl.ft = 0; fl.v0 = v0; fl.e = e;
-  G.state = 'flight'; setTimeScale(1); skier.fp(false); skier.root.scale.setScalar(1.4); startBlend(0.55); droneInit = false; streaks.setMode('side'); show(el.mLand, false);
-  skier.play('takeoff', 0.05); fl.flightQueued = true; A.sfx('launch'); G.shake = 0.5; spray.burst(skier.root.position.x, skier.root.position.y, 0, 14, 6, 6, 1.6);
+  G.state = 'flight'; setTimeScale(1); skier.fp(false); skier.root.scale.setScalar(1.35); startBlend(0.55); droneInit = false; streaks.setMode('side'); show(el.mLand, false);
+  skier.play('takeoff', 0.05); fl.flightQueued = true; A.sfx('launch'); G.shake = 0.5; spray.burst(skier.root.position.x, skier.root.position.y, 0, 14, 6, 6, 0.9);
   el.dlab.textContent = 'DISTANCE'; el.dunit.textContent = 'm'; el.dnum.textContent = '0';
   const mp = P.speedFromMeter(run.speedPos); fl.speedGrade = (run.speedRes || mp).grade; if (!run.speedRes) run.speedRes = mp;
 }
@@ -193,7 +194,7 @@ function touchdown() {
   const x = h.x, y = P.groundY(x); skier.root.position.set(x, y, 0);
   const tang = Math.max(8, h.sp * 0.82); fl.slide = { x, v: tang };
   if (fl.grade.name === 'SLOPPY' && !wait) skier.play('sloppy', 0.04); else skier.play('telemark', 0.04);
-  spray.burst(x, y, 0, 36, 8, h.vx * 0.3, 2.4); A.sfx('land'); A.sfx('skid'); G.shake = 0.9; world.cheer = 0.6;
+  spray.burst(x, y, 0, 30, 8, h.vx * 0.3, 1.1); A.sfx('land'); A.sfx('skid'); G.shake = 0.9; world.cheer = 0.6;
   el.dnum.textContent = fl.dist.toFixed(1); show(el.mLand, false);
   // style points
   fl.styleLaunch = Math.round(20 * lip.res.q * (lip.res.grade === 'PERFECT' ? 1 : 0.9)); fl.styleSpeed = Math.round(10 * run.speedRes.q);
@@ -273,7 +274,7 @@ function update(dt) {
     const gy = P.groundY(sl.x); skier.root.position.set(sl.x, gy, 0); const tgt = -ang; skier.root.rotation.z += (tgt - skier.root.rotation.z) * Math.min(1, gdt * 10);
     if (fl.sl > 0.35 && !fl.skidPlayed) { fl.skidPlayed = true; skier.play(fl.grade.name === 'SLOPPY' ? 'sloppy' : 'telemark', 0.2); }
     if (fl.sl > 1.15 && !fl.skidP2) { fl.skidP2 = true; if (sl.v > 1.5) skier.play('skid', 0.5); }
-    if (sl.v > 1.2 && Math.random() < Math.min(1, sl.v / 14)) spray.emit(sl.x - 0.8, gy + 0.2, (Math.random() - 0.5) * 1.6, -sl.v * 0.15, 1 + Math.random() * 1.5, (Math.random() - 0.5) * 3, 1.1, 0.8);
+    if (sl.v > 1.2 && Math.random() < Math.min(1, sl.v / 14)) spray.emit(sl.x - 0.8, gy + 0.2, (Math.random() - 0.5) * 1.6, -sl.v * 0.15, 1 + Math.random() * 1.5, (Math.random() - 0.5) * 3, 0.6, 0.8);
     el.dnum.textContent = fl.dist.toFixed(1); world.updateMarkers(P.arcAt(sl.x), G.wall);
     skier.update(gdt); camDrone(dt, sl.v < 3.5 ? 'celebrate' : 'land'); streaksLevel = Math.min(1, sl.v / 20) * 0.6;
     if (!fl.announced && fl.sl > 0.7) announce();

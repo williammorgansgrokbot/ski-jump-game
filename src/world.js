@@ -32,6 +32,7 @@ export function terrainY(x, z) {
   if (x < 0) y -= 0.4 * sstep((az - 6) / 8) * 0; return y;
 }
 
+const SZ = 34;   // lateral distance of the stands from the track centre
 export function buildWorld(opts) {
   const { tex, pineGeo, quality } = opts; const Q = quality;
   const scene = new THREE.Scene(); const root = scene;
@@ -127,7 +128,7 @@ export function buildWorld(opts) {
     [-1, 1].forEach((side) => {
       for (let x0 = 44; x0 < 200; x0 += 4) {
         const gx = x0 + 2; const gy = groundY(gx);
-        for (let r = 0; r < rows; r++) { const z = side * (26 + r * 1.9); const y = terrainY(gx, z) + r * 1.15; sg.push(box(4.2, 1.15 * (r + 1) + 0.6, 1.9, gx, y + 0.55 - 0.45, z, r % 2 ? 0x8d6a45 : 0xa77c4e)); }
+        for (let r = 0; r < rows; r++) { const z = side * (SZ + r * 1.9); const y = terrainY(gx, z) + r * 1.15; sg.push(box(4.2, 1.15 * (r + 1) + 0.6, 1.9, gx, y + 0.55 - 0.45, z, r % 2 ? 0x8d6a45 : 0xa77c4e)); }
       }
       // railing / ad boards along the track edge
       for (let x0 = 36; x0 < 215; x0 += 6) { const gx = x0 + 3; const z = side * 24.2; const y = terrainY(gx, z); const colr = [0xe84c4c, 0x3d78e8, 0xf2c230, 0x3dbf6a][((x0 / 6) | 0) % 4]; sg.push(box(5.6, 1.2, 0.3, gx, y + 0.65, z, colr)); sg.push(box(5.8, 0.18, 0.4, gx, y + 1.3, z, 0xffffff)); }
@@ -136,13 +137,13 @@ export function buildWorld(opts) {
     // crowd planes
     const texes = [tex.crowdA, tex.crowdB].filter(Boolean);
     if (texes.length) {
-      const W = 22;
+      const W = 20;
       [-1, 1].forEach((side) => {
         for (let x0 = 46; x0 < 200; x0 += 17) {
           for (let r = 0; r < 3; r++) {
             const t = texes[(((x0 / 17) | 0) + r) % texes.length]; const ar = t.image ? t.image.height / t.image.width : 0.4;
             const mat = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.35, fog: true, side: THREE.DoubleSide });
-            const gx = x0 + W / 2 - (r * 5); const z = side * (26.6 + r * 1.9); const baseY = terrainY(gx, z) + r * 1.15 + 0.55;
+            const gx = x0 + W / 2 - (r * 5); const z = side * (SZ + 0.6 + r * 1.9); const baseY = terrainY(gx, z) + r * 1.15 + 0.55;
             const pl = new THREE.Mesh(new THREE.PlaneGeometry(W, W * ar), mat); pl.position.set(gx, baseY + (W * ar) / 2, z); pl.rotation.y = side < 0 ? 0 : Math.PI; pl.userData = { base: baseY + (W * ar) / 2, ph: Math.random() * 6.28, h: W * ar };
             pl.scale.set(side < 0 ? 1 : -1, 1, 1); root.add(pl); world.crowd.push(pl);
           }
@@ -161,8 +162,8 @@ export function buildWorld(opts) {
   if (pineGeo) {
     const mat = lambertVC(); const n = Q.trees; const im = new THREE.InstancedMesh(pineGeo, mat, n); const d = new THREE.Object3D(); let k = 0; let tries = 0;
     while (k < n && tries < n * 30) {
-      tries++; const x = -105 + Math.random() * 410; const side = Math.random() < 0.5 ? -1 : 1; const z = side * (35 + Math.random() * 100);
-      if (x < 0 && Math.abs(z) < 20) continue; if (Math.abs(z) < 33 && x > 20) continue;
+      tries++; const x = -105 + Math.random() * 410; const side = Math.random() < 0.5 ? -1 : 1; const z = side * (46 + Math.random() * 100);
+      if (x < 0 && Math.abs(z) < 20) continue; if (Math.abs(z) < 44 && x > 20) continue;
       const s = 2.3 + Math.random() * 2.0; const sy = s * (0.95 + Math.random() * 0.35); d.position.set(x, terrainY(x, z) - 0.3 * 3.11 * sy, z); d.scale.set(s * 1.55, sy, s * 1.55); d.rotation.set(0, Math.random() * 6.28, 0); d.updateMatrix(); im.setMatrixAt(k++, d.matrix);
     }
     im.count = k; im.instanceMatrix.needsUpdate = true; im.castShadow = false; im.receiveShadow = false; root.add(im); world.trees = im;

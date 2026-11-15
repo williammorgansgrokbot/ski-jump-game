@@ -51,7 +51,7 @@ export class Confetti {
 // ---- speed lines / wind streaks: additive line segments in camera space ---------------------------------------
 export class Streaks {
   constructor(camera, count) {
-    this.n = count || 70; this.camera = camera; this.mode = 'fp'; this.level = 0;
+    this.n = count || 40; this.camera = camera; this.mode = 'fp'; this.level = 0;
     this.pos = new Float32Array(this.n * 6); this.seed = []; for (let i = 0; i < this.n; i++) this.seed.push({ a: Math.random() * 6.283, r: 0, z: 0, len: 0, sp: 0 });
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     this.mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, fog: false });
@@ -61,11 +61,11 @@ export class Streaks {
   respawn(i, init) {
     const s = this.seed[i];
     if (this.mode === 'fp') { s.r = 0.9 + Math.random() * 3.6; s.a = Math.random() * 6.283; s.z = -(init ? Math.random() * 14 : 14); s.len = 0.8 + Math.random() * 2.2; s.sp = 0.8 + Math.random() * 0.5; }
-    else { s.r = 0; s.a = 0; s.z = 0; s.len = 1.2 + Math.random() * 2.4; s.sp = 0.7 + Math.random() * 0.7; s.px = (init ? (Math.random() - 0.5) : 0.55) * 22; s.py = (Math.random() - 0.5) * 7; s.pz = -(8 + Math.random() * 8); }
+    else { s.r = 0; s.a = 0; s.z = 0; s.len = 0.5 + Math.random() * 0.9; s.sp = 0.7 + Math.random() * 0.7; s.px = (init ? (Math.random() - 0.5) : 0.55) * 22; s.py = (Math.random() < 0.5 ? -1 : 1) * (1.6 + Math.random() * 2.6); s.pz = -(5 + Math.random() * 4); }
   }
   setMode(m) { this.mode = m; for (let i = 0; i < this.n; i++) this.respawn(i, true); }
   update(dt, speed, level) {
-    this.level += (level - this.level) * Math.min(1, dt * 4); this.mat.opacity = Math.min(0.85, this.level * 0.85); this.lines.visible = this.level > 0.02;
+    this.level += (level - this.level) * Math.min(1, dt * 4); this.mat.opacity = Math.min(0.45, this.level * 0.45); this.lines.visible = this.level > 0.02;
     if (!this.lines.visible) return;
     const p = this.pos;
     for (let i = 0; i < this.n; i++) {
