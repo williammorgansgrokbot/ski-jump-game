@@ -1,3 +1,5 @@
 node_modules/
 raw/*.glb
 __pycache__/
+build/
+previews/vid_*/
