@@ -155,7 +155,7 @@ function buildScene(tex, pineGeo, Q) {
     // gates / signs / snowmen (front-facing painted billboards behind the line)
     const sb = new Batch(); const put = (name, x, w, z, lift) => { const a = rectAspect(name, PJ); const h = w / a; const y = groundY(x) - 0.1 + (lift || 0); const th = slopeDeg(x) * D2R;
       const c = Math.cos(th), s = Math.sin(th); sb.quad4(new V3(x - w / 2 * c, y + w / 2 * s, z), new V3(x + w / 2 * c, y - w / 2 * s, z), new V3(x + w / 2 * c - h * s * 0.0, y - w / 2 * s + h, z), new V3(x - w / 2 * c, y + w / 2 * s + h, z), rectUV(name, PJ)); };
-    put('start', X_START + 6, 8, -1.3); put('finish', X_FIN, 11, -1.3);
+    put('start', X_START + 6, 8, -1.3); put('finish', X_FIN, 8, -1.3);
     [FEATS[0], FEATS[2], FEATS[4], FEATS[6]].forEach((F) => put('trick', F.x0 - 34, 3.4, -2.8));
     [40, 190, 380, 560, 640, X_FIN + 22].forEach((x, i) => put('snowman', x, 2.2, -3.8 - (i % 2) * 1.2));
     const sm = new THREE.Mesh(sb.geometry(), new THREE.MeshBasicMaterial({ map: tex.park, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide })); sm.renderOrder = 0; scene.add(sm);
@@ -225,9 +225,9 @@ export function createPark(deps) {
   P.enter = async function () {
     A.initAudio(); A.unlockSpeech(); await skier.ensurePark(); await build(); await new Promise((r) => setTimeout(r, 0));
     P.active = true; P.state = 'ready'; sim = simulate(); P.sim = sim; P.t = 0; rt = FEATS.map(() => ({ res: null, awarded: false })); score = shown = combo = maxCombo = landed = 0; cheer = 0; readyT = 0; finT = 0; shots = {}; lift = 0; lastPose = '';
-    E.hud.classList.remove('hidden'); E.res.classList.add('hidden'); E.rnew.classList.remove('show'); E.pop.classList.remove('show'); E.sc.textContent = '0'; E.cx.textContent = 'x1'; E.cbar.style.width = '0%'; E.prog.textContent = 'TRICK 1/' + FEATS.length; E.count.textContent = '3'; E.btn.className = 'txt idle'; E.btn.disabled = false; E.btn2.textContent = FEATS[0].name;
-    skier.attach(park.scene); skier.fp(false); skier.board.rotation.set(0, 0, 0); skier.root.scale.setScalar(1.3); skier.root.position.set(X_START, groundY(X_START), 0.45); skier.root.rotation.set(0, 0, groundAng(X_START)); skier.extraRot = 0; skier.ground = (x) => ({ y: groundY(x), ang: groundAng(x) });
-    skier.play('pride', 0, true); camX = X_START + 4; camY = groundY(X_START) + 2; camZ = 13; confetti.stop(); A.music('run'); A.sfx('beep');
+    E.hud.classList.remove('hidden'); E.res.classList.add('hidden'); E.rnew.classList.remove('show'); E.pop.classList.remove('show'); E.sc.textContent = '0'; E.cx.textContent = 'x1'; E.cbar.style.width = '0%'; E.prog.textContent = 'TRICK 1/' + FEATS.length; E.count.textContent = '3'; E.btn.className = 'txt idle'; E.btl.textContent = 'GET READY'; E.btn.disabled = false; E.btn2.textContent = FEATS[0].name;
+    skier.attach(park.scene); skier.fp(false); skier.board.rotation.set(0, 0, 0); skier.root.scale.setScalar(1.5); skier.root.position.set(X_START, groundY(X_START), 0.45); skier.root.rotation.set(0, 0, groundAng(X_START)); skier.extraRot = 0; skier.ground = (x) => ({ y: groundY(x), ang: groundAng(x) });
+    skier.play('pride', 0, true); camX = X_START + 4; camY = groundY(X_START) + 1.85; camZ = 12.2; confetti.stop(); A.music('run'); A.sfx('beep');
   };
   P.exit = function () { P.active = false; P.state = 'idle'; E.hud.classList.add('hidden'); E.res.classList.add('hidden'); E.rnew.classList.remove('show'); E.pop.classList.remove('show'); confetti && confetti.stop(); skier.extraRot = 0; skier.frameOverride = null; skier.root.scale.setScalar(0.8); };
 
@@ -250,7 +250,7 @@ export function createPark(deps) {
     E.pname.textContent = F.name + '!'; E.pname.style.color = res.q === 'PERFECT' ? '#ffe27a' : '#ffffff'; E.ppts.textContent = '+' + pts; E.psub.textContent = res.q + ' x' + QMULT[res.q] + '  ·  COMBO x' + cm.toFixed(2).replace(/\.?0+$/, '');
     E.pop.classList.remove('show'); void E.pop.offsetWidth; E.pop.classList.add('show');
     cheer = 1; A.sfx('cheer'); if (res.q === 'PERFECT') A.sfx('fanfare'); A.speak(F.say);
-    const p = skier.root.position; spray.burst(p.x, p.y, 0.5, 18, 6, 2, 0.28); if (res.q !== 'EARLY' && res.q !== 'LATE') confetti.start();
+    const p = skier.root.position; spray.burst(p.x, p.y, 0.5, 12, 5, 2, 0.15); if (res.q !== 'EARLY' && res.q !== 'LATE') confetti.start();
     setTimeout(() => confetti.stop(), 900);
   };
 
@@ -301,7 +301,7 @@ export function createPark(deps) {
       for (let j = 0; j < FEATS.length; j++) { if (rt[j].awarded) continue; const e = sim.ev[j], F = FEATS[j]; const res = rt[j].res; const kick = F.kind === 'kick';
         if (res && res.q !== 'MISS' && P.t >= res.end + (kick ? 0 : 0)) award(j); else if (res && res.q === 'MISS' && e.tLand != null && P.t >= e.tLand) award(j); }
       const pz = P.state === 'finish' ? { anim: 'cheerFist', frame: null, extra: 0, wantLift: 0, p: 0, name: '', j: -1, tricking: false } : pose(t, st, dt); P.cur = { j: pz.j, anim: pz.anim, tricking: pz.tricking, p: pz.p, name: pz.name };
-      if (pz.anim !== lastPose) { skier.play(pz.anim, 0, true); lastPose = pz.anim; if (pz.anim === 'pland') { A.sfx('land'); const pp = skier.root.position; spray.burst(pp.x, pp.y, 0.5, 12, 5, 3, 0.28); skier.kick(-0.25); } if (pz.anim === 'pair' && st.m === 1) { A.sfx('launch'); const pp = skier.root.position; spray.burst(pp.x, pp.y, 0.5, 8, 4, 3, 0.25); skier.kick(0.2); } if (pz.anim === 'pgrind') A.sfx('skid'); }
+      if (pz.anim !== lastPose) { skier.play(pz.anim, 0, true); lastPose = pz.anim; if (pz.anim === 'pland') { A.sfx('land'); const pp = skier.root.position; spray.burst(pp.x, pp.y, 0.5, 8, 4, 3, 0.15); skier.kick(-0.25); } if (pz.anim === 'pair' && st.m === 1) { A.sfx('launch'); const pp = skier.root.position; spray.burst(pp.x, pp.y, 0.5, 6, 3.5, 3, 0.14); skier.kick(0.2); } if (pz.anim === 'pgrind') A.sfx('skid'); }
       if (pz.frame != null) { if (pz.anim === 'pride') skier.setFrame(pz.frame); else skier.setFrame(pz.frame); } else if (skier.frameOverride != null) { skier.frameOverride = null; skier.last = -1; }
       skier.extraRot = pz.extra;
       lift += ((pz.wantLift ? 0.95 : 0) - lift) * (1 - Math.exp(-dt * 18));
@@ -309,14 +309,14 @@ export function createPark(deps) {
       const root = skier.root; const sc = root.scale.x;
       root.position.set(st.x, st.y + lift * sc, 0.45); const ta = st.m === 0 ? st.a : st.m === 1 ? clamp(st.a * 0.55, -0.7, 0.8) : clamp(st.a * 0.7, -1.0, 1.0);
       root.rotation.z += (ta - root.rotation.z) * (1 - Math.exp(-dt * 16));
-      if (pz.anim === 'pgrind' && Math.random() < 0.9) spray.emit(st.x - 0.6, st.y + 0.12, 0.6, -2 - Math.random() * 3, 1.5 + Math.random() * 2.5, (Math.random() - 0.5) * 1.5, 0.28, 0.45);
-      else if (st.m === 0 && P.t > 0.6 && Math.random() < 0.55) spray.emit(st.x - 1.0, st.y + 0.12, 0.5, -st.vx * 0.1, 0.5 + Math.random(), (Math.random() - 0.5) * 1.2, 0.3, 0.5);
+      if (pz.anim === 'pgrind' && Math.random() < 0.9) spray.emit(st.x - 0.6, st.y + 0.12, 0.6, -2 - Math.random() * 3, 1.5 + Math.random() * 2.5, (Math.random() - 0.5) * 1.5, 0.16, 0.4);
+      else if (st.m === 0 && P.t > 0.6 && Math.random() < 0.55) spray.emit(st.x - 1.0, st.y + 0.12, 0.5, -st.vx * 0.1, 0.5 + Math.random(), (Math.random() - 0.5) * 1.2, 0.17, 0.45);
       skier.update(dt);
       // trick button + ring
       if (P.state === 'run') {
         const j = nextIdx(); const F = FEATS[j]; let lit = false;
         if (j < FEATS.length) { const d = P.t - sim.target[j]; lit = d >= -WIN_EARLY && d <= WIN_LATE; E.btn2.textContent = F.name; if (lit) { const k = clamp(-d / WIN_EARLY, 0, 1); const sc2 = 1 + 1.6 * k * k; E.ring.style.transform = 'scale(' + sc2.toFixed(3) + ')'; E.ring.style.opacity = String(0.35 + 0.65 * (1 - k)); E.ring.style.borderColor = Math.abs(d) <= PERF ? '#ffe27a' : '#ffffff'; } }
-        if (!E.btn.classList.contains('hidden')) E.btn.classList.toggle('lit', lit); E.btn.classList.toggle('idle', !lit); E.ring.style.display = lit ? 'block' : 'none';
+        if (!E.btn.classList.contains('hidden')) E.btn.classList.toggle('lit', lit); E.btn.classList.toggle('idle', !lit); E.btl.textContent = lit ? 'TRICK!' : 'GET READY'; E.ring.style.display = lit ? 'block' : 'none';
         E.prog.textContent = j < FEATS.length ? 'TRICK ' + (j + 1) + '/' + FEATS.length : 'FINISH LINE!';
       }
       E.cx.textContent = 'x' + (combo ? Math.min(2.5, 1 + 0.25 * (combo - 1)).toFixed(2).replace(/\.?0+$/, '') : '1'); E.cbar.style.width = Math.min(100, combo / 7 * 100) + '%';
@@ -324,8 +324,8 @@ export function createPark(deps) {
       if (P.state === 'run' && P.t >= sim.tFin) { P.state = 'finish'; finT = 0; skier.play('cheerFist', 0.2, true); lastPose = 'cheerFist'; confetti.start(); A.sfx('fanfare'); A.sfx('cheer'); cheer = 1; pop(E.judge, 'FINISH!', '#ffe27a'); A.speak('Finish!'); skier.extraRot = 0; E.btn.className = 'txt idle hidden'; E.ring.style.display = 'none'; }
       if (P.state === 'finish') { finT += dt; skier.extraRot = 0; if (finT > 2.6) showResult(); }
       // camera: side-on follow with look-ahead; pulls back when high above the snow
-      const hAir = Math.max(0, st.y - groundY(st.x)); const tz = 13 + clamp(hAir * 0.9, 0, 5.5); const kx = 1 - Math.exp(-dt * 6), ky = 1 - Math.exp(-dt * 3.2);
-      camX += (st.x + 4.2 - camX) * kx; camY += (st.y + 0.9 + clamp(hAir * 0.4, 0, 3) - camY) * ky; camZ += (tz - camZ) * (1 - Math.exp(-dt * 2.2));
+      const hAir = Math.max(0, st.y - groundY(st.x)); const fin = P.state === 'finish'; const tz = fin ? 15 : 12.2 + clamp(hAir * 0.35, 0, 2.0); const kx = 1 - Math.exp(-dt * 6), ky = 1 - Math.exp(-dt * (st.m === 1 ? 8 : 4.5));
+      camX += (st.x + (fin ? -0.5 : 4.2) - camX) * kx; camY += (st.y + (fin ? 2.6 : 1.85 + clamp(hAir * 0.3, 0, 2.2) + (st.m === 1 ? clamp(st.vy * 0.14, -2.2, 2.6) : 0)) - camY) * ky; camZ += (tz - camZ) * (1 - Math.exp(-dt * 2.2));
     }
     confetti.update(dt); spray.update(dt, renderer.domElement.height, cam.fov);
     cam.position.set(camX - 0.6, camY + 1.1, camZ); cam.lookAt(camX, camY + 0.2, 0);
