@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" href="art/icon_512.png">
 <style>
 :root{--sl:max(env(safe-area-inset-left),47px);--sr:max(env(safe-area-inset-right),47px);--st:max(env(safe-area-inset-top),8px);--sb:max(env(safe-area-inset-bottom),8px);
---gold:#ffd34d;--navy:#14234d;--ice:#8fd2ff;--font:'Arial Rounded MT Bold','Baloo 2','Fredoka','Trebuchet MS',system-ui,-apple-system,sans-serif}
+--tb:min(26vh,20vw,210px);--gold:#ffd34d;--navy:#14234d;--ice:#8fd2ff;--font:'Arial Rounded MT Bold','Baloo 2','Fredoka','Trebuchet MS',system-ui,-apple-system,sans-serif}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{margin:0;height:100%;overflow:hidden;background:#0d1b3d;font-family:var(--font);color:#fff;overscroll-behavior:none}
 #app{position:fixed;inset:0;overflow:hidden}
@@ -67,7 +67,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0d1b3d;font-family:va
 #phud .cbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#45b6fe,#5be37d,#ffe14a,#ff5d73);transition:width .25s}
 #pprog{position:absolute;left:50%;transform:translateX(-50%);top:calc(var(--st) + .8vh);font-size:max(12px,2.8vh);opacity:.95}
 #pcount{position:absolute;left:0;right:0;top:22vh;text-align:center;font-size:max(60px,24vh);line-height:1;z-index:7}
-#pjudge{position:absolute;right:calc(var(--sr) + min(33vh,27vw));bottom:calc(var(--sb) + 8vh);font-size:max(24px,8vh);line-height:1;z-index:9;transform:scale(0);opacity:0;pointer-events:none;white-space:nowrap}
+#pjudge{position:absolute;left:calc(var(--sl) + var(--tb) + 2vw);bottom:calc(var(--sb) + 6vh);font-size:max(24px,8vh);line-height:1;z-index:9;transform:scale(0);opacity:0;pointer-events:none;white-space:nowrap}
 #pjudge.show{animation:pjin 1s ease-out forwards}
 @keyframes pjin{0%{transform:scale(.2);opacity:0}15%{transform:scale(1.2);opacity:1}30%{transform:scale(1)}75%{opacity:1}100%{transform:scale(1) translateY(-4vh);opacity:0}}
 #ppopup{position:absolute;left:50%;top:calc(var(--st) + 12vh);transform:translateX(-50%);text-align:center;z-index:9;pointer-events:none;white-space:nowrap;opacity:0}
@@ -76,7 +76,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0d1b3d;font-family:va
 #pname{font-size:max(28px,11vh);line-height:1}
 #ppts{font-size:max(22px,8.4vh);line-height:1.05;color:#ffe27a}
 #psub{font-size:max(15px,4.2vh);margin-top:.4vh}
-#ptrick{position:absolute;right:var(--sr);bottom:calc(var(--sb) + 1.5vh);width:min(32vh,26vw);height:min(32vh,26vw);border:0;background:url(art/btn_go.webp) center/contain no-repeat;color:#fff;font:inherit;z-index:8;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4vh;transition:filter .15s,transform .12s;filter:hue-rotate(120deg) saturate(1.25)}
+#ptrick{position:absolute;left:var(--sl);bottom:calc(var(--sb) + 1.5vh);width:var(--tb);height:var(--tb);border:0;background:url(art/btn_go.webp) center/contain no-repeat;color:#fff;font:inherit;z-index:8;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4vh;transition:filter .15s,transform .12s;filter:hue-rotate(120deg) saturate(1.25)}
 #ptrick .big{font-size:min(6.6vh,5.2vw);line-height:1}
 #ptrick .sm{font-size:min(3vh,2.4vw);line-height:1;color:#ffe27a}
 #ptrick.idle{filter:hue-rotate(120deg) saturate(.5) brightness(.82) drop-shadow(0 0 1.4vh rgba(185,150,255,.75));animation:twait 1.8s ease-in-out infinite}

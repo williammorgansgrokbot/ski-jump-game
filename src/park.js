@@ -227,7 +227,7 @@ export function createPark(deps) {
     P.active = true; P.state = 'ready'; sim = simulate(); P.sim = sim; P.t = 0; rt = FEATS.map(() => ({ res: null, awarded: false })); score = shown = combo = maxCombo = landed = 0; cheer = 0; readyT = 0; finT = 0; shots = {}; lift = 0; lastPose = '';
     E.hud.classList.remove('hidden'); E.res.classList.add('hidden'); E.rnew.classList.remove('show'); E.pop.classList.remove('show'); E.sc.textContent = '0'; E.cx.textContent = 'x1'; E.cbar.style.width = '0%'; E.prog.textContent = 'TRICK 1/' + FEATS.length; E.count.textContent = '3'; E.btn.className = 'txt idle'; E.btl.textContent = 'GET READY'; E.btn.disabled = false; E.btn2.textContent = FEATS[0].name;
     skier.attach(park.scene); skier.fp(false); skier.board.rotation.set(0, 0, 0); skier.root.scale.setScalar(1.5); skier.root.position.set(X_START, groundY(X_START), 0.45); skier.root.rotation.set(0, 0, groundAng(X_START)); skier.extraRot = 0; skier.ground = (x) => ({ y: groundY(x), ang: groundAng(x) });
-    skier.play('pride', 0, true); camX = X_START + 4; camY = groundY(X_START) + 1.85; camZ = 12.2; confetti.stop(); A.music('run'); A.sfx('beep');
+    skier.play('pride', 0, true); camX = X_START + 3; camY = groundY(X_START) + 1.85; camZ = 12.2; confetti.stop(); A.music('run'); A.sfx('beep');
   };
   P.exit = function () { P.active = false; P.state = 'idle'; E.hud.classList.add('hidden'); E.res.classList.add('hidden'); E.rnew.classList.remove('show'); E.pop.classList.remove('show'); confetti && confetti.stop(); skier.extraRot = 0; skier.frameOverride = null; skier.root.scale.setScalar(0.8); };
 
@@ -318,7 +318,7 @@ export function createPark(deps) {
       // trick button + ring
       if (P.state === 'run') {
         const j = nextIdx(); const F = FEATS[j]; let lit = false;
-        if (j < FEATS.length) { const d = P.t - sim.target[j]; lit = d >= -WIN_EARLY && d <= WIN_LATE; E.btn2.textContent = F.name; if (lit) { const k = clamp(-d / WIN_EARLY, 0, 1); const sc2 = 1 + 1.6 * k * k; E.ring.style.transform = 'scale(' + sc2.toFixed(3) + ')'; E.ring.style.opacity = String(0.35 + 0.65 * (1 - k)); E.ring.style.borderColor = Math.abs(d) <= PERF ? '#ffe27a' : '#ffffff'; } }
+        if (j < FEATS.length) { const d = P.t - sim.target[j]; lit = d >= -WIN_EARLY && d <= WIN_LATE; E.btn2.textContent = F.name; if (lit) { const k = clamp(-d / WIN_EARLY, 0, 1); const sc2 = 1 + 1.2 * k * k; E.ring.style.transform = 'scale(' + sc2.toFixed(3) + ')'; E.ring.style.opacity = String(0.35 + 0.65 * (1 - k)); E.ring.style.borderColor = Math.abs(d) <= PERF ? '#ffe27a' : '#ffffff'; } }
         if (!E.btn.classList.contains('hidden')) E.btn.classList.toggle('lit', lit); E.btn.classList.toggle('idle', !lit); E.btl.textContent = lit ? 'TRICK!' : 'GET READY'; E.ring.style.display = lit ? 'block' : 'none';
         E.prog.textContent = j < FEATS.length ? 'TRICK ' + (j + 1) + '/' + FEATS.length : 'FINISH LINE!';
       }
@@ -328,7 +328,7 @@ export function createPark(deps) {
       if (P.state === 'finish') { finT += dt; skier.extraRot = 0; if (finT > 2.6) showResult(); }
       // camera: side-on follow with look-ahead; pulls back when high above the snow
       const hAir = Math.max(0, st.y - groundY(st.x)); const fin = P.state === 'finish'; const tz = fin ? 15 : 12.2 + clamp(hAir * 0.35, 0, 2.0); const kx = 1 - Math.exp(-dt * 6), ky = 1 - Math.exp(-dt * (st.m === 1 ? 8 : 4.5));
-      camX += (st.x + (fin ? -0.5 : 4.2) - camX) * kx; camY += (st.y + (fin ? 2.6 : 1.85 + clamp(hAir * 0.3, 0, 2.2) + (st.m === 1 ? clamp(st.vy * 0.14, -2.2, 2.6) : 0)) - camY) * ky; camZ += (tz - camZ) * (1 - Math.exp(-dt * 2.2));
+      camX += (st.x + (fin ? -0.5 : 3.0) - camX) * kx; camY += (st.y + (fin ? 2.6 : 1.85 + clamp(hAir * 0.3, 0, 2.2) + (st.m === 1 ? clamp(st.vy * 0.14, -2.2, 2.6) : 0)) - camY) * ky; camZ += (tz - camZ) * (1 - Math.exp(-dt * 2.2));
     }
     confetti.update(dt); spray.update(dt, renderer.domElement.height, cam.fov);
     cam.position.set(camX - 0.6, camY + 1.1, camZ); cam.lookAt(camX, camY + 0.2, 0);
