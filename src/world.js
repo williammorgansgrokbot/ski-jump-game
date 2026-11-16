@@ -1,3 +1,4 @@
+import { TreeField, pickKind } from './trees.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Batch, rectUV, rectAspect, buildRunSide, sideTime } from './runside.js';
@@ -42,7 +43,7 @@ export function bobMat(map) {
 }
 const SZ = 34;   // lateral distance of the stands from the track centre
 export function buildWorld(opts) {
-  const { tex, pineGeo, quality } = opts; const Q = quality;
+  const { tex, quality } = opts; const Q = quality;
   const scene = new THREE.Scene(); const root = scene;
   const HORIZON = 0xf6efff;
   scene.background = new THREE.Color(0x5db8ff); scene.fog = new THREE.Fog(HORIZON, 140, 560);
@@ -170,15 +171,15 @@ export function buildWorld(opts) {
     });
   }
 
-  // --- pine forests (instanced, shared decimated Quaternius pine)
-  if (pineGeo) {
-    const mat = lambertVC(); const n = Q.trees; const im = new THREE.InstancedMesh(pineGeo, mat, n); const d = new THREE.Object3D(); let k = 0; let tries = 0;
+  // --- painted cartoon forests (one instanced billboard draw call; sprites from art/trees.webp)
+  if (tex.trees) {
+    const tf = new TreeField(); const n = Q.trees; let k = 0, tries = 0;
     while (k < n && tries < n * 30) {
       tries++; const x = -105 + Math.random() * 410; const side = Math.random() < 0.5 ? -1 : 1; const z = side * (46 + Math.random() * 100);
       if (x < 0 && Math.abs(z) < 20) continue; if (Math.abs(z) < 44 && x > 20) continue;
-      const s = 2.3 + Math.random() * 2.0; const sy = s * (0.95 + Math.random() * 0.35); d.position.set(x, terrainY(x, z) - 0.3 * 3.11 * sy, z); d.scale.set(s * 1.55, sy, s * 1.55); d.rotation.set(0, Math.random() * 6.28, 0); d.updateMatrix(); im.setMatrixAt(k++, d.matrix);
+      const kind = pickKind(Math.random()); const h = 8.5 + Math.random() * 7.5; tf.add(kind, x, terrainY(x, z) - 0.5, z, h * (Math.abs(z) > 100 ? 1.25 : 1)); k++;
     }
-    im.count = k; im.instanceMatrix.needsUpdate = true; im.castShadow = false; im.receiveShadow = false; root.add(im); world.trees = im;
+    const mesh = tf.build(tex.trees, { color: HORIZON, near: 45, far: 420, max: 0.8 }); root.add(mesh); world.trees = mesh;
   }
 
   // --- distance lines on the landing slope (one InstancedMesh) + number boards (one merged mesh)

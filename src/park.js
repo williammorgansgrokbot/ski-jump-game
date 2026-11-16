@@ -8,6 +8,7 @@ import { Batch, rectUV, rectAspect, flagMaterial, sideTime, waveU } from './runs
 import { bobMat, bobTick } from './world.js';
 import { Spray, Confetti } from './fx.js';
 import * as A from './audio.js';
+import { TreeField, pickKind, GREEN_KINDS } from './trees.js';
 
 const D2R = Math.PI / 180;
 const sstep = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
@@ -104,11 +105,11 @@ export function simulate() {
 
 // ------------------------------------------------------------------ scenery
 const TINTS = [0xffb3d9, 0xb7f2d0, 0xa9d4ff, 0xffe9a0, 0xd6bcff, 0xffc7a3].map((h) => new THREE.Color(h));
-function terrainY(x, z) { const g = groundY(x); if (z <= 1.3) return g + (z < -6 ? 0.05 * Math.pow(-z - 6, 1.2) : 0) + (z < -10 ? 0.35 * Math.sin(x * 0.05 + z * 0.1) : 0); return g - (z - 1.3) * 60; }
+function terrainY(x, z) { const g = groundY(x); if (z <= 7.1) return g + (z < -6 ? 0.05 * Math.pow(-z - 6, 1.2) : 0) + (z < -10 ? 0.35 * Math.sin(x * 0.05 + z * 0.1) : 0); return g - (z - 1.3) * 60; }
 function vcBox(w, h, d, x, y, z, color) { const g = new THREE.BoxGeometry(w, h, d); g.deleteAttribute('uv'); g.translate(x, y, z); const c = new THREE.Color(color); const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; }
 const lambertVC = (o) => new THREE.MeshLambertMaterial(Object.assign({ vertexColors: true }, o || {}));
 
-function buildScene(tex, pineGeo, Q) {
+function buildScene(tex, Q) {
   const scene = new THREE.Scene(); const park = { scene, mats: {}, dogs: [], clouds: [] };
   const HOR = 0xf6efff; scene.background = new THREE.Color(0x5db8ff); scene.fog = new THREE.Fog(HOR, 90, 520);
   // sky dome (follows the camera) + two painted mountain layers + clouds, all drifting at different rates for parallax
@@ -126,7 +127,7 @@ function buildScene(tex, pineGeo, Q) {
   scene.add(new THREE.HemisphereLight(0xe6f2ff, 0xc2d4f0, 2.1)); const sun = new THREE.DirectionalLight(0xfff1d6, 2.4); sun.position.set(30, 60, 45); scene.add(sun);
   // snow terrain with pastel colour bands, a front cliff skirt, painted lane dashes
   {
-    const xs = []; for (let x = -120; x <= X_FIN + 240; x += 6) xs.push(x); const zs = [-170, -100, -60, -34, -18, -10, -5, -1.5, 0.6, 1.3, 1.5];
+    const xs = []; for (let x = -120; x <= X_FIN + 240; x += 6) xs.push(x); const zs = [-170, -100, -60, -34, -18, -10, -5, -1.5, 0.6, 3.5, 7.1, 7.3];
     const nx = xs.length, nz = zs.length; const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3), idx = [];
     const white = new THREE.Color(0xf6faff), blue = new THREE.Color(0xc7dcf4), cliff = new THREE.Color(0x7aa0d8), c = new THREE.Color();
     for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
@@ -178,12 +179,17 @@ function buildScene(tex, pineGeo, Q) {
     [['stormy', 20, -3.0], ['emma', 25, -3.4], ['emma', X_FIN - 10, -3.0], ['stormy', X_FIN - 6, -3.4]].forEach(([nm, x, z], i) => { const t = tex[nm]; if (!t) return; const ar = t.image ? t.image.height / t.image.width : 1.2; const h = 2.0;
       const m = new THREE.Mesh(new THREE.PlaneGeometry(h / ar, h), new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide })); const y0 = groundY(x) - 0.1; m.position.set(x, y0 + h / 2, z); m.userData = { base: y0 + h / 2, ph: i * 1.9 }; scene.add(m); park.dogs.push(m); });
   }
-  // pines (instanced parallax mid layer)
-  if (pineGeo) {
-    const n = Math.min(Q.trees, 200); const im = new THREE.InstancedMesh(pineGeo, lambertVC(), n); const d = new THREE.Object3D(); let k = 0, tries = 0;
-    while (k < n && tries < n * 20) { tries++; const x = -40 + Math.random() * (X_FIN + 150); const z = -(14 + Math.random() * 46); const s = 2.6 + Math.random() * 2.4; const sy = s * (0.95 + Math.random() * 0.35);
-      d.position.set(x, terrainY(x, z) - 0.3 * 3.11 * sy, z); d.scale.set(s * 1.55, sy, s * 1.55); d.rotation.set(0, Math.random() * 6.28, 0); d.updateMatrix(); im.setMatrixAt(k++, d.matrix); }
-    im.count = k; im.instanceMatrix.needsUpdate = true; scene.add(im);
+  // painted cartoon trees: three depth layers in ONE instanced billboard draw call (far haze-tinted forest, mid-ground, a few small foreground firs)
+  if (tex.trees) {
+    const tf = new TreeField(); const n = Math.min(Q.trees, 260);
+    for (let i = 0; i < n; i++) {                                          // far + mid forest
+      const x = -40 + Math.random() * (X_FIN + 160); const mid = i < n * 0.3; const z = mid ? -(13 + Math.random() * 22) : -(36 + Math.random() * 80);
+      tf.add(pickKind(Math.random()), x, terrainY(x, z) - 0.6, z, mid ? 5.5 + Math.random() * 4.5 : 10 + Math.random() * 12);
+    }
+    // foreground: small firs near the camera, only in the gaps between features so they never cover a trick
+    const gaps = [[30, FEATS[0].x0 - 28]]; for (let i = 0; i < FEATS.length - 1; i++) gaps.push([FEATS[i].x0 + FEATS[i].W + 26, FEATS[i + 1].x0 - 28]); gaps.push([FEATS[FEATS.length - 1].x0 + FEATS[FEATS.length - 1].W + 30, X_FIN + 40]);
+    gaps.forEach(([a, b]) => { if (b - a < 10) return; const m = (a + b) / 2; for (const dx of (b - a > 30 ? [-0.28, 0.2] : [0])) { const x = m + dx * (b - a); tf.add(GREEN_KINDS[Math.floor(Math.random() * GREEN_KINDS.length)], x, groundY(x) - 0.25, 3.4 + Math.random() * 1.2, 3.6 + Math.random() * 1.4); } });
+    park.trees = tf.build(tex.trees, { color: HOR, near: 30, far: 330, max: 0.8 }); scene.add(park.trees);
   }
   // coloured twinkling sparkles along the course
   {
@@ -200,7 +206,7 @@ function buildScene(tex, pineGeo, Q) {
 
 // ------------------------------------------------------------------ game
 export function createPark(deps) {
-  const { renderer, skier, store, toast, onExit, loadTex, getTex, getPine, QUAL, GG } = deps;
+  const { renderer, skier, store, toast, onExit, loadTex, getTex, QUAL, GG } = deps;
   const $ = (id) => document.getElementById(id);
   const E = { hud: $('phud'), sc: $('psc'), cx: $('pcx'), cbar: $('pcbar'), prog: $('pprog'), count: $('pcount'), pop: $('ppopup'), pname: $('pname'), ppts: $('ppts'), psub: $('psub'), judge: $('pjudge'), btn: $('ptrick'), btl: $('ptbig'), btn2: $('ptn'), ring: $('pring'), res: $('presult'), rscore: $('pscore'), rnew: $('newrec') };
   const cam = new THREE.PerspectiveCamera(40, 1, 0.1, 2500); const P = { active: false, state: 'idle', cam, scene: null, sim: null, t: 0 };
@@ -215,7 +221,7 @@ export function createPark(deps) {
   async function build() {
     if (built) return; const tex = getTex();
     if (!tex.park) { tex.park = await loadTex('art/park/park.webp'); if (tex.park) { tex.park.generateMipmaps = true; tex.park.minFilter = THREE.LinearMipmapLinearFilter; tex.park.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy()); tex.park.needsUpdate = true; } }
-    park = buildScene(tex, getPine(), QUAL); P.scene = park.scene; P.park = park; park.scene.add(cam);
+    park = buildScene(tex, QUAL); P.scene = park.scene; P.park = park; park.scene.add(cam);
     spray = new Spray(park.scene, tex.puff, 160); confetti = new Confetti(cam, 170); P.spray = spray; built = true;
   }
   P.resize = (w, h) => { cam.aspect = w / h; cam.updateProjectionMatrix(); };

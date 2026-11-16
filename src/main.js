@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SpriteSkier, SUITS, makeFPSkis } from './sprite_skier.js';
 import { buildWorld, terrainY } from './world.js';
 import { Spray, Confetti, Streaks } from './fx.js';
@@ -43,19 +42,8 @@ const tcam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
 
 const texLoader = new THREE.TextureLoader();
 function loadTex(url, srgb) { return new Promise((res) => texLoader.load(url, (t) => { if (srgb !== false) t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.anisotropy = 1; res(t); }, undefined, () => res(null))); }
-const TEXFILES = { ridge: 'ridge.webp', cloud: 'cloud.webp', bunting: 'bunting.webp', crowdA: 'crowd_a.webp', crowdB: 'crowd_b.webp', stormy: 'dog_stormy.webp', emma: 'dog_emma.webp', puff: 'puff.webp', side: 'side/side.webp', archA: 'side/arch_a.webp', archB: 'side/arch_b.webp' };
+const TEXFILES = { ridge: 'ridge.webp', cloud: 'cloud.webp', bunting: 'bunting.webp', crowdA: 'crowd_a.webp', crowdB: 'crowd_b.webp', stormy: 'dog_stormy.webp', emma: 'dog_emma.webp', puff: 'puff.webp', side: 'side/side.webp', archA: 'side/arch_a.webp', archB: 'side/arch_b.webp', trees: 'trees.webp' };
 function loadGLB(url) { return new Promise((res, rej) => new GLTFLoader().load(url, res, undefined, rej)); }
-async function loadPine() {
-  const g = await loadGLB('models/pine.glb'); const geos = [];
-  g.scene.updateMatrixWorld(true);
-  g.scene.traverse((o) => { if (!o.isMesh) return; const ge = o.geometry.clone(); ge.applyMatrix4(o.matrixWorld); const mats = Array.isArray(o.material) ? o.material : [o.material];
-    ['uv', 'uv1', 'tangent'].forEach((a) => ge.deleteAttribute(a)); const n = ge.attributes.position.count; const col = new Float32Array(n * 3); const c = new THREE.Color();
-    const groups = ge.groups.length ? ge.groups : [{ start: 0, count: ge.index ? ge.index.count : n, materialIndex: 0 }];
-    const idx = ge.index; const nonIdx = ge.toNonIndexed(); const cols = new Float32Array(nonIdx.attributes.position.count * 3);
-    groups.forEach((gr) => { const m = mats[gr.materialIndex] || mats[0]; c.copy(m.color); const nm = (m.name || '').toLowerCase(); if (nm.indexOf('snow') >= 0) c.setHex(0xffffff).convertSRGBToLinear(); else if (nm.indexOf('green') >= 0) c.setHex(0x2f9c66).convertSRGBToLinear(); else if (nm.indexOf('wood') >= 0) c.setHex(0x6b4a30).convertSRGBToLinear(); for (let i = gr.start; i < gr.start + gr.count; i++) { cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b; } });
-    nonIdx.setAttribute('color', new THREE.BufferAttribute(cols, 3)); geos.push(nonIdx); });
-  const m = mergeGeometries(geos, false); m.computeVertexNormals(); return m;
-}
 
 // ---------------------------------------------------------------- DOM refs
 const el = { title: $('title'), hud: $('hud'), result: $('result'), bg: $('bg'), go: $('go'), count: $('count'), call: $('call'), grade: $('grade'), dnum: $('dnum'), dlab: $('dlab'), dunit: $('dunit'), hsub: $('hsub'),
@@ -63,7 +51,7 @@ const el = { title: $('title'), hud: $('hud'), result: $('result'), bg: $('bg'),
 
 // ---------------------------------------------------------------- game state
 const G = { state: 'loading', t: 0, ts: 1, tsTarget: 1, wall: 0 };
-let fpSkis, fpSkiKit, world, skier, titleScene, spray, confetti, streaks, park, TEX, PINE;
+let fpSkis, fpSkiKit, world, skier, titleScene, spray, confetti, streaks, park, TEX;
 G.mode = store.get('mode', 'jump');
 const SUIT_CHIPS = ['wyatt', 'reid', 'brady', 'stetson'];
 let suitId = store.get('suit', 'wyatt'); let equip = store.get('equip', { suit: null, ski: null });
@@ -351,11 +339,11 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { try
 
 // ---------------------------------------------------------------- boot
 (async function boot() {
-  const bar = $('lbar'); let done = 0; const total = Object.keys(TEXFILES).length + 3; const tick = () => { done++; bar.style.width = (done / total * 100) + '%'; };
+  const bar = $('lbar'); let done = 0; const total = Object.keys(TEXFILES).length + 2; const tick = () => { done++; bar.style.width = (done / total * 100) + '%'; };
   const tex = {}; await Promise.all(Object.keys(TEXFILES).map((k) => loadTex('art/' + TEXFILES[k]).then((t) => { tex[k] = t; tick(); })));
-  const [skiGltf, pineGeo] = await Promise.all([loadGLB('models/gear_ski.glb').then((a) => { tick(); return a; }), loadPine().then((g) => { tick(); return g; }).catch(() => null)]);
+  const skiGltf = await loadGLB('models/gear_ski.glb').then((a) => { tick(); return a; });
   if (tex.side) { tex.side.generateMipmaps = true; tex.side.minFilter = THREE.LinearMipmapLinearFilter; tex.side.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy()); tex.side.needsUpdate = true; }
-  world = buildWorld({ tex, pineGeo, quality: QUAL }); tick();
+  world = buildWorld({ tex, quality: QUAL }); tick();
   world.scene.add(cam);
   titleScene = new THREE.Scene(); titleScene.add(new THREE.HemisphereLight(0xdff0ff, 0xaec4e6, 1.25)); const tl = new THREE.DirectionalLight(0xfff1d6, 2.0); tl.position.set(3, 5, 4); titleScene.add(tl);
   skier = new SpriteSkier();
@@ -363,8 +351,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { try
   fpSkis = new THREE.Group(); [-1, 1].forEach((sd) => { const c = fpSkiKit.mk(sd); const h = new THREE.Group(); h.add(c); h.position.set(sd * 0.2, -0.66, -1.15); h.rotation.y = sd * 0.1; h.userData.sd = sd; fpSkis.add(h); }); fpSkis.visible = false; cam.add(fpSkis);
   await applyLook();
   spray = new Spray(world.scene, tex.puff, 150); confetti = new Confetti(cam, 150); streaks = new Streaks(cam, 70);
-  TEX = tex; PINE = pineGeo;
-  park = createPark({ renderer, skier, store, loadTex, getTex: () => TEX, getPine: () => PINE, QUAL, toast: (m) => { el.toast.innerHTML = m; el.toast.classList.add('show'); A.sfx('unlock'); setTimeout(() => el.toast.classList.remove('show'), 3500); } });
+  TEX = tex;
+  park = createPark({ renderer, skier, store, loadTex, getTex: () => TEX, QUAL, toast: (m) => { el.toast.innerHTML = m; el.toast.classList.add('show'); A.sfx('unlock'); setTimeout(() => el.toast.classList.remove('show'), 3500); } });
   resize(); toTitle(); el.go.disabled = false;
   $('loading').style.opacity = 0; setTimeout(() => $('loading').remove(), 600);
   requestAnimationFrame(frame);
