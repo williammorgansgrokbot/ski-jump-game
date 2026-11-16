@@ -270,9 +270,12 @@ export function createPark(deps) {
         if (tr && kick && t >= r.start) {
           const q = clamp((t - r.start) / Math.max(0.2, r.end - r.start), 0, 1); p = q; tricking = true; name = F.name;
           if (F.t === 'back' || F.t === 'front') {
+            // orientation is CCW-positive: backflip = +CCW, front flip = -CW. Both frame sets face right (travel direction) and are
+            // looked up by nearest orientation, so the rotation sense is right whichever sheet the frames came from.
             const dir = F.t === 'back' ? 1 : -1; const R = q * 360 * (F.revs || 1); const Rm = R >= 359.9 ? 360 : R % 360; const meta = dir > 0 ? BACK : FRONT;
-            if (Rm < 28 || Rm > 335) { anim = 'pair'; extra = dir * (Rm > 335 ? Rm - 360 : Rm) * D2R; }
-            else { let bi = 0, bd = 1e9; meta.forEach((n, i) => { const dd = Math.abs(Rm - n); if (dd < bd) { bd = dd; bi = i; } }); anim = dir > 0 ? 'pback' : 'pfront'; frame = bi; extra = dir * (Rm - meta[bi]) * D2R; }
+            const ph = dir * Rm; const wrap = (x) => ((x % 360) + 540) % 360 - 180;
+            if (Math.abs(wrap(ph)) < 30) { anim = 'pair'; extra = wrap(ph) * D2R; }
+            else { let bi = 0, bd = 1e9; meta.forEach((n, k) => { const dd = Math.abs(wrap(ph - n)); if (dd < bd) { bd = dd; bi = k; } }); anim = dir > 0 ? 'pback' : 'pfront'; frame = bi; extra = wrap(ph - meta[bi]) * D2R; }
             if (q >= 1) { anim = 'pair'; extra = 0; }
           } else if (F.t === 'spin') { anim = 'pspin'; frame = q >= 1 ? 0 : Math.floor(q * 8) % 8; }
           else if (F.t === 'grab') { anim = 'pgrab'; frame = q < 0.2 ? 0 : q < 0.9 ? (Math.floor(q * 14) % 2 ? 1 : 2) : 0; if (q >= 1) anim = 'pair'; }
@@ -350,4 +353,4 @@ export function createPark(deps) {
 
 // nominal body angles per tumbling frame (deg), from art/sprites/park.json
 import PARK from '../art/sprites/park.json';
-const BACK = PARK.anims.pback.ang.map(Math.abs), FRONT = PARK.anims.pfront.ang.map(Math.abs);
+const BACK = PARK.anims.pback.ang, FRONT = PARK.anims.pfront.ang;   // orientations (deg, CCW+) of the mirrored, right-facing frames

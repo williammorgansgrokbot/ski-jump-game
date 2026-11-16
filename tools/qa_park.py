@@ -36,7 +36,12 @@ with sync_playwright() as p:
             sched.append((f'popup_{i}', e['tLand']+0.25))
         else:
             sched.append((f'trick_{i}', e['tOn']+ (e['tRel']-e['tOn'])*0.55)); sched.append((f'popup_{i}', e['tRel']+0.4))
+    if os.environ.get('STRIP'):
+        for j,i in ((2,'back'),(5,'front'),(4,'spin')):
+            e=ev[j]; a=e['tRel']+0.08; b=e['tLand']-0.12
+            for k in range(6): sched.append((f'strip_{i}_{k}', a+(b-a)*k/5))
     keep={'riding','approach_back','trick_grab','trick_rail','trick_back','trick_box','trick_spin','trick_front','trick_big','popup_big','popup_back','approach_big'} if full else {'approach_back','trick_back','trick_big'}
+    if os.environ.get('STRIP'): keep=keep|{f'strip_{i}_{k}' for i in ('back','front','spin') for k in range(6)}
     if mode=='video': keep=set()
     sched=sorted([s for s in sched if s[0] in keep], key=lambda x:x[1])
     pg.evaluate('(a)=>{window.__game.park.pauseAt=a}',[s[1] for s in sched])

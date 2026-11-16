@@ -16,8 +16,13 @@ os.makedirs(PRE, exist_ok=True)
 SKI_LEN = S.SKI_LEN; PAD = 3
 
 # nominal body rotation (deg, CCW positive) that each tumbling frame depicts; the game adds whole-sprite rotation for the residual
-BACK = [60, 95, 135, 180, 250, 300]
-FRONT = [-30, -45, -65, -180, -235, -345]
+# Orientation (deg, CCW positive) of each tumbling frame AFTER the sheets are mirrored to face right (the direction of travel).
+# Both sheets depict a clockwise (forward) tumble for a right-facing skier; the game picks the frame
+# whose orientation is nearest the wanted one (backflip = CCW, front flip = CW), so rotation direction is always correct.
+BACK = [-39, -63, -71, -161, -111, -53]      # measured: direction from the skis to the face (CCW +), so the head ends up pointing
+FRONT = [-32, -21, -32, -207, -171, 12]      # exactly up when the game rotates the frame by (wanted - label)
+# generated sheets that came out facing LEFT; they are mirrored (before recolour/bib stamping) so every frame faces right
+FLIP_FILES = {'ride_a.jpg', 'poplanding_a.jpg', 'backflip_a.jpg', 'spin_a.jpg', 'grindgrab_a.jpg'}
 ANIMS = [
  dict(name='pride',  file='ride_a.jpg',        rows=2, cols=3, sel=None,      fps=10, loop=True,  air=False),
  dict(name='ppop',   file='poplanding_a.jpg',  rows=2, cols=3, sel=[0, 1],    fps=10, loop=False, air=False),
@@ -39,6 +44,7 @@ def build_frames():
     for sp in ANIMS:
         if sp['file'] not in cache:
             fr = S.load_sheet(sp)
+            if sp['file'] in FLIP_FILES: fr = [np.ascontiguousarray(f[:, ::-1]) for f in fr]
             L = sorted([S.ski_length(f) for f in fr]); ref = L[int(len(L) * 0.8)]      # upper percentile: foreshortened frames must not inflate the scale
             cache[sp['file']] = (fr, SKI_LEN / ref if ref > 0 else 1.0)
             print('%-18s frames=%d ski_len(p80)=%.0f scale=%.3f' % (sp['file'], len(fr), ref, cache[sp['file']][1]))
